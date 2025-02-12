@@ -49,6 +49,86 @@ nas-wapi adalah REST API service yang mengintegrasikan WhatsApp Web untuk mengir
    }
    ```
 
+## API Documentation
+
+### POST /message
+
+Endpoint untuk mengirim pesan menggunakan WhatsApp.
+
+#### Request Body Umum
+
+- recipient_type (string, required): "group" atau "individual"
+- to (string, required): Nomor tujuan (tanpa kode negara)
+- type (string, required): "text", "image", atau "document"
+- text (object, required untuk type "text"):
+  - body (string, required): Isi pesan
+- media (object, required untuk type "image" atau "document"):
+  - url (string): URL media (opsional, jika tidak menggunakan base64)
+  - base64 (string): Data media dalam format base64 (opsional, jika tidak menggunakan URL)
+  - mimeType (string): Tipe MIME media (wajib jika menggunakan base64)
+  - filename (string): Nama file (opsional)
+
+#### Contoh Request
+
+Text Message (individual):
+
+```json
+{
+  "recipient_type": "individual",
+  "to": "1234567890",
+  "type": "text",
+  "text": { "body": "Halo, ini pesan teks dari API!" }
+}
+```
+
+Text Message (group):
+
+```json
+{
+  "recipient_type": "individual",
+  "to": "1234567890434433", #group_id
+  "type": "text",
+  "text": { "body": "Halo, ini pesan teks dari API!" }
+}
+```
+
+Image Message:
+
+```json
+{
+  "recipient_type": "group",
+  "to": "groupid",
+  "type": "image",
+  "media": { "url": "https://example.com/image.jpg" }
+}
+```
+
+Document Message:
+
+```json
+{
+  "recipient_type": "individual",
+  "to": "1234567890",
+  "type": "document",
+  "media": {
+    "base64": "base64_encoded_string_here",
+    "mimeType": "application/pdf",
+    "filename": "document.pdf"
+  }
+}
+```
+
+#### Response
+
+- Success (200):
+  ```json
+  { "status": "success", "message": "Message sent to [recipient_type] [to]" }
+  ```
+- Error (400/500):
+  ```json
+  { "status": "error", "message": "Deskripsi error" }
+  ```
+
 ## Struktur Project
 
 - `src/`
