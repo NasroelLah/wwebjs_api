@@ -6,7 +6,6 @@ export const HOST_PORT = process.env.HOST_PORT || 3000;
 export const WEBHOOK_URL = process.env.WEBHOOK_URL;
 export const ENABLE_LOGGER = process.env.ENABLE_LOGGER || false;
 
-// Tambah konfigurasi rate limit dari .env
 export const RATE_LIMIT = process.env.RATE_LIMIT
   ? parseInt(process.env.RATE_LIMIT, 10)
   : 100;

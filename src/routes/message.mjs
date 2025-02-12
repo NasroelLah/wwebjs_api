@@ -15,9 +15,7 @@ export async function messageRoute(fastify, options) {
             text: {
               type: "object",
               required: ["body"],
-              properties: {
-                body: { type: "string" },
-              },
+              properties: { body: { type: "string" } },
             },
           },
         },
@@ -25,51 +23,32 @@ export async function messageRoute(fastify, options) {
     },
     async (request, reply) => {
       const { recipient_type, to, type, text } = request.body;
-
-      // Validasi input
       if (!recipient_type || !to || !text || !text.body) {
         reply.status(400).send({
           status: "error",
-          message:
-            "recipient_type, nomor/ID tujuan, dan isi pesan harus disediakan.",
+          message: "Missing required fields.",
         });
         return;
       }
-
-      // Hanya mendukung pesan teks
       if (type !== "text") {
         reply.status(400).send({
           status: "error",
-          message: "Saat ini hanya pesan teks yang didukung.",
+          message: "Only text messages are supported.",
         });
         return;
       }
-
-      // Menentukan format chatId berdasarkan tipe penerima
-      let chatId;
-      if (recipient_type === "group") {
-        chatId = `${to}@g.us`;
-      } else if (recipient_type === "individual") {
-        chatId = `${to}@c.us`;
-      } else {
-        reply.status(400).send({
-          status: "error",
-          message: 'recipient_type harus "individual" atau "group".',
-        });
-        return;
-      }
-
+      let chatId = recipient_type === "group" ? `${to}@g.us` : `${to}@c.us`;
       try {
         await client.sendMessage(chatId, text.body);
         reply.status(200).send({
           status: "success",
-          message: `Pesan berhasil dikirim ke ${recipient_type} ${to}`,
+          message: `Message sent to ${recipient_type} ${to}`,
         });
       } catch (error) {
-        fastify.log.error(error, "Gagal mengirim pesan");
+        fastify.log.error(error, "Failed to send message");
         reply.status(500).send({
           status: "error",
-          message: `Gagal mengirim pesan: ${error.message}`,
+          message: `Failed to send message: ${error.message}`,
         });
       }
     }

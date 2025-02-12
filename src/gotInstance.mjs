@@ -7,8 +7,6 @@ export const gotInstance = got.extend({
     http: new http.Agent({ keepAlive: true }),
     https: new https.Agent({ keepAlive: true }),
   },
-  timeout: {
-    request: 5000,
-  },
+  timeout: { request: 5000 },
   responseType: "json",
 });

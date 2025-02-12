@@ -16,10 +16,9 @@ fastify.register(compress);
 
 fastify.register(rateLimit, {
   max: RATE_LIMIT,
-  timeWindow: RATE_LIMIT_EXPIRE * 1000, // convert detik ke milidetik
+  timeWindow: RATE_LIMIT_EXPIRE * 1000,
 });
 
-// PreHandler hook untuk verifikasi API key
 fastify.addHook("preHandler", async (request, reply) => {
   const apiKey = request.headers["key"];
   if (!apiKey || apiKey !== API_KEY) {
@@ -31,10 +30,8 @@ fastify.addHook("preHandler", async (request, reply) => {
   }
 });
 
-// Daftarkan route
 fastify.register(messageRoute);
 
-// Fungsi untuk menjalankan server
 export function startServer() {
   fastify.listen({ port: HOST_PORT }, (err, address) => {
     if (err) {
