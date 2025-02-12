@@ -4,7 +4,7 @@ nas-wapi adalah REST API service yang mengintegrasikan WhatsApp Web untuk mengir
 
 ## Fitur
 
-- Autentikasi menggunakan API key
+- Autentikasi menggunakan Bearer token
 - Mengirim pesan ke grup maupun individu via WhatsApp
 - Pengiriman payload pesan ke webhook eksternal
 - Rate limiting dan compress untuk optimalisasi performa
@@ -39,7 +39,12 @@ nas-wapi adalah REST API service yang mengintegrasikan WhatsApp Web untuk mengir
    ```bash
    npm start
    ```
-2. Untuk mengirim pesan, gunakan endpoint `/message` dengan payload JSON:
+2. Untuk mengirim pesan, gunakan endpoint `/message` dengan payload JSON dan sertakan header Authorization:
+
+   ```http
+   Authorization: Bearer your_api_key
+   ```
+
    ```json
    {
      "recipient_type": "individual",

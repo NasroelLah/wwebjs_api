@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.0.0",
+  "version": "1.3.2",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
@@ -13,7 +13,9 @@
     "fastify": "^5.2.1",
     "fastify-plugin": "^5.0.1",
     "got": "^14.4.6",
+    "luxon": "^3.5.0",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.26.0"
+    "whatsapp-web.js": "^1.26.0",
+    "winston": "^3.17.0"
   }
 }
