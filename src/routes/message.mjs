@@ -15,7 +15,6 @@ export async function messageRoute(fastify, options) {
     {
       schema: {
         description: "Send a message to a specified recipient.",
-        /* ...existing schema... */
       },
     },
     async (request, reply) => {
