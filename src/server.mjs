@@ -28,6 +28,13 @@ fastify.addHook("preHandler", async (request, reply) => {
     });
     return;
   }
+
+  if (
+    request.body &&
+    (request.body.type === "image" || request.body.type === "document")
+  ) {
+    fastify.log.info(`Received media message of type: ${request.body.type}`);
+  }
 });
 
 fastify.register(messageRoute);

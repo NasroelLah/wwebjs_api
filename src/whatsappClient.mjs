@@ -29,6 +29,9 @@ client.on("disconnected", (reason) => {
 
 client.on("message", async (msg) => {
   console.log("Message received:", msg.body);
+  if (msg.type === "image" || msg.type === "document") {
+    console.log("Media message received of type:", msg.type);
+  }
   if (!WEBHOOK_URL) {
     console.error("WEBHOOK_URL not set");
     return;
