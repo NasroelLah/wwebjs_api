@@ -13,7 +13,7 @@ nas-wapi adalah REST API service yang mengintegrasikan WhatsApp Web untuk mengir
 
 1. Clone repository:
    ```bash
-   git clone <repository_url>
+   git clone https://github.com/NasroelLah/wwebjs_api
    ```
 2. Masuk ke folder project:
    ```bash
