@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {

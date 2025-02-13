@@ -32,6 +32,22 @@ client.on("disconnected", (reason) => {
 });
 
 client.on("message", async (msg) => {
+  if (msg.fromMe && process.env.WEBHOOK_EXCLUDE_ME === "true") {
+    console.log("Skipping webhook: message from self.");
+    return;
+  }
+  if (
+    msg.from.endsWith("@g.us") &&
+    process.env.WEBHOOK_EXCLUDE_GROUP === "true"
+  ) {
+    console.log("Skipping webhook: group message.");
+    return;
+  }
+  if (msg.isChannel && process.env.WEBHOOK_EXCLUDE_CHANNEL === "true") {
+    console.log("Skipping webhook: channel message.");
+    return;
+  }
+
   console.log("Message received:", msg.body);
   if (msg.type === "image" || msg.type === "document") {
     console.log("Media message received of type:", msg.type);
