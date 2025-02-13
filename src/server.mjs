@@ -9,6 +9,7 @@ import {
   RATE_LIMIT_EXPIRE,
 } from "./config.mjs";
 import { messageRoute } from "./routes/message.mjs";
+import { batchMessageRoute } from "./routes/batchMessage.mjs";
 import logger from "./logger.mjs";
 import { validateApiKey } from "./middleware/auth.mjs";
 import bree from "./jobs/breeTasks.mjs";
@@ -57,6 +58,7 @@ fastify.addHook("preHandler", async (request) => {
 });
 
 fastify.register(messageRoute);
+fastify.register(batchMessageRoute);
 
 export function startServer() {
   fastify.listen({ port: HOST_PORT }, (err, address) => {
