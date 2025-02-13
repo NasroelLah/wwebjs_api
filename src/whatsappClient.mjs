@@ -1,6 +1,6 @@
 import qrcode from "qrcode-terminal";
 import { createRequire } from "module";
-import { gotInstance } from "./gotInstance.mjs";
+import { request } from "undici";
 import { WEBHOOK_URL } from "./config.mjs";
 
 const require = createRequire(import.meta.url);
@@ -62,8 +62,17 @@ client.on("message", async (msg) => {
     payload.fromNumber = senderNumber;
   }
   try {
-    await gotInstance.post(WEBHOOK_URL, { json: payload });
-    console.log("Message data sent to webhook");
+    // Updated: Using Undici to send the webhook
+    const response = await request(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      console.log("Message data sent to webhook");
+    } else {
+      console.error(`Webhook responded with status ${response.statusCode}`);
+    }
   } catch (error) {
     console.error("Failed sending webhook:", error.message);
   }
