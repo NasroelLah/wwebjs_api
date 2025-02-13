@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
@@ -15,7 +15,6 @@
     "bull": "^4.16.5",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
-    "fastify-plugin": "^5.0.1",
     "luxon": "^3.5.0",
     "mongodb": "^6.13.0",
     "pino": "^9.6.0",
