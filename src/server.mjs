@@ -11,6 +11,7 @@ import {
 import { messageRoute } from "./routes/message.mjs";
 import logger from "./logger.mjs";
 import { validateApiKey } from "./middleware/auth.mjs";
+import { processScheduledMessages } from "./helpers/queueHelper.mjs";
 
 const fastify = Fastify({ logger: ENABLE_LOGGER });
 
@@ -48,5 +49,6 @@ export function startServer() {
       process.exit(1);
     }
     logger.info(`Server running at ${address}`);
+    processScheduledMessages();
   });
 }

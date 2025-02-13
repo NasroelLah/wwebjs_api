@@ -4,6 +4,7 @@ import { validateApiKey } from "../middleware/auth.mjs";
 import { buildMessageContent } from "../helpers/messageHelper.mjs";
 import { scheduleDispatch } from "../helpers/scheduleHelper.mjs";
 import { sendMessageWithRetry } from "../helpers/sendHelper.mjs";
+import { isValidScheduleFormat } from "../helpers/validationHelper.mjs";
 
 export async function messageRoute(fastify, options) {
   fastify.addHook("preHandler", async (request, reply) => {
@@ -30,6 +31,13 @@ export async function messageRoute(fastify, options) {
       } = request.body;
       const chatId = recipient_type === "group" ? `${to}@g.us` : `${to}@c.us`;
       try {
+        if (schedule && !isValidScheduleFormat(schedule)) {
+          return reply.code(400).send({
+            status: "error",
+            message: "Invalid schedule format.",
+          });
+        }
+
         const { messageContent, sendOptions } = await buildMessageContent({
           type,
           text,
@@ -43,6 +51,7 @@ export async function messageRoute(fastify, options) {
           schedule &&
           scheduleDispatch(chatId, messageContent, sendOptions, schedule)
         ) {
+          logger.info(`Message scheduled for ${schedule}`);
           return reply.code(200).send({
             status: "success",
             message: "Message scheduled successfully.",

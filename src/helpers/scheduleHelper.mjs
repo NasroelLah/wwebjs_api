@@ -1,5 +1,5 @@
 import { DateTime } from "luxon";
-import { sendMessageWithRetry } from "./sendHelper.mjs";
+import { addMessageToQueue } from "./queueHelper.mjs";
 import logger from "../logger.mjs";
 
 export function scheduleDispatch(chatId, content, options, schedule) {
@@ -11,15 +11,9 @@ export function scheduleDispatch(chatId, content, options, schedule) {
   const delay = scheduledTime.toMillis() - now.toMillis();
   if (delay > 0) {
     logger.info(`Message scheduled in ${delay} ms`);
-    setTimeout(async () => {
-      try {
-        await sendMessageWithRetry(chatId, content, options);
-        logger.info(`Scheduled message sent to ${chatId}`);
-      } catch (error) {
-        logger.error(`Scheduled send failed: ${error.message}`);
-      }
-    }, delay);
+    addMessageToQueue(chatId, content, options, delay);
     return true;
   }
+  logger.warn(`Scheduled time ${schedule} is in the past.`);
   return false;
 }
