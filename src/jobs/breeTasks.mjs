@@ -1,4 +1,5 @@
-import { Bree } from "bree";
+/* eslint-disable import/no-unresolved */
+import Bree from "bree";
 import path from "path";
 
 const bree = new Bree({
