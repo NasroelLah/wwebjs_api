@@ -24,8 +24,9 @@ export async function saveScheduledMessage(chatId, content, options, delay) {
     scheduledTime,
     status: "scheduled",
   };
-  await collection.insertOne(message);
+  const result = await collection.insertOne(message);
   logger.info(`Scheduled message saved to MongoDB for chatId ${chatId}`);
+  return result.insertedId;
 }
 
 export async function getScheduledMessages() {
