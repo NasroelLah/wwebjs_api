@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@fastify/compress": "^8.0.1",
+    "@fastify/helmet": "^13.0.1",
     "@fastify/rate-limit": "^10.2.2",
     "bree": "^9.2.4",
     "bull": "^4.16.5",
@@ -21,7 +22,8 @@
     "qrcode-terminal": "^0.12.0",
     "redis": "^4.7.0",
     "undici": "^6.21.1",
-    "whatsapp-web.js": "^1.26.0"
+    "whatsapp-web.js": "^1.26.0",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

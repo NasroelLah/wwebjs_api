@@ -2,6 +2,8 @@
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
+import helmet from "@fastify/helmet";
+import sanitizeInput from "./middleware/sanitize.mjs";
 import {
   HOST_PORT,
   ENABLE_LOGGER,
@@ -15,6 +17,10 @@ import { validateApiKey } from "./middleware/auth.mjs";
 import bree from "./jobs/breeTasks.mjs";
 
 const fastify = Fastify({ logger: ENABLE_LOGGER });
+
+fastify.register(helmet);
+
+fastify.addHook("preValidation", sanitizeInput);
 
 fastify.addHook("onRequest", async (request) => {
   logger.info(`${request.method} ${request.url}`);
