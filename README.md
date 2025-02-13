@@ -5,7 +5,9 @@ nas-wapi adalah REST API service yang mengintegrasikan WhatsApp Web untuk mengir
 ## Fitur
 
 - Autentikasi menggunakan Bearer token
-- Mengirim pesan ke grup maupun individu via WhatsApp
+- Mengirim pesan ke grup maupun individual
+- Mengirim pesan teks, gambar, dan dokumen
+- Mengatur jadwal pengiriman pesan
 - Pengiriman payload pesan ke webhook eksternal
 - Rate limiting dan compress untuk optimalisasi performa
 
@@ -23,15 +25,7 @@ nas-wapi adalah REST API service yang mengintegrasikan WhatsApp Web untuk mengir
    ```bash
    npm install
    ```
-4. Buat file `.env` dan sesuaikan konfigurasi:
-   ```properties
-   API_KEY=your_api_key
-   HOST_PORT=3030
-   WEBHOOK_URL=https://hook.yourdomain.com/endpoint
-   ENABLE_LOGGER=false
-   RATE_LIMIT=100
-   RATE_LIMIT_EXPIRE=60
-   ```
+4. Salin file `.env.example` ke `.env` dan sesuaikan konfigurasi yang diperlukan.
 
 ## Penggunaan
 
@@ -63,7 +57,7 @@ Endpoint untuk mengirim pesan menggunakan WhatsApp.
 #### Request Body Umum
 
 - recipient_type (string, required): "group" atau "individual"
-- to (string, required): Nomor tujuan (tanpa kode negara)
+- to (string, required): Nomor tujuan (tanpa +)
 - type (string, required): "text", "image", atau "document"
 - text (object, required untuk type "text"):
   - body (string, required): Isi pesan
@@ -72,6 +66,8 @@ Endpoint untuk mengirim pesan menggunakan WhatsApp.
   - base64 (string): Data media dalam format base64 (opsional, jika tidak menggunakan URL)
   - mimeType (string): Tipe MIME media (wajib jika menggunakan base64)
   - filename (string): Nama file (opsional)
+- caption (string): Keterangan media (opsional)
+- schedule (string): Jadwal pengiriman pesan (opsional)
 
 #### Contoh Request
 
@@ -104,7 +100,10 @@ Image Message:
   "recipient_type": "group",
   "to": "groupid",
   "type": "image",
-  "media": { "url": "https://example.com/image.jpg" }
+  "media": {
+    "url": "https://example.com/image.jpg"
+  },
+  "caption": "Ini adalah gambar!"
 }
 ```
 
@@ -119,7 +118,22 @@ Document Message:
     "base64": "base64_encoded_string_here",
     "mimeType": "application/pdf",
     "filename": "document.pdf"
-  }
+  },
+  "caption": "Dokumen ini penting!"
+}
+```
+
+Schedule Message:
+
+```json
+{
+  "recipient_type": "individual",
+  "to": "1234567890",
+  "type": "text",
+  "text": {
+    "body": "Halo, ini pesan teks dari API!"
+  },
+  "schedule": "2025-12-31 23:59:59"
 }
 ```
 
@@ -133,27 +147,3 @@ Document Message:
   ```json
   { "status": "error", "message": "Deskripsi error" }
   ```
-
-## Struktur Project
-
-- `src/`
-  - `config.mjs` – Konfigurasi environment dan setup project.
-  - `server.mjs` – Setup Fastify server dan plugin.
-  - `routes/message.mjs` – Endpoint REST API untuk mengirim pesan.
-  - `whatsappClient.mjs` – Integrasi WhatsApp Web.
-  - `gotInstance.mjs` – Konfigurasi got untuk webhook.
-  - `index.mjs` – Entry point aplikasi.
-
-## Logging & Error Handling
-
-Aplikasi mengimplementasikan logging (aktif/nonaktif berdasarkan konfigurasi) dan penanganan global untuk unhandled promise rejection dan uncaught exceptions.
-
-## Optimasi
-
-- Rate limiting dengan konfigurasi dari file `.env`
-- Response compression dengan threshold yang dapat dikonfigurasi
-- Fitur clustering dapat diterapkan untuk pemanfaatan multi-core CPU
-
-## Lisensi
-
-Project ini dilisensikan sesuai dengan lisensi yang tertera dalam repository.
