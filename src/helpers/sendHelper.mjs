@@ -4,7 +4,6 @@ import pkg from "whatsapp-web.js";
 const { MessageMedia } = pkg;
 
 export async function sendMessageWithRetry(chatId, content, options = {}) {
-  // Reinitialize MessageMedia if content is a plain object (lost prototype during serialization)
   if (
     content &&
     typeof content === "object" &&

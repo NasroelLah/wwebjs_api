@@ -15,7 +15,6 @@ import { processScheduledMessages } from "./helpers/queueHelper.mjs";
 
 const fastify = Fastify({ logger: ENABLE_LOGGER });
 
-// Response formatter hook for standardized responses in English
 fastify.addHook("onSend", async (request, reply, payload) => {
   let data;
   try {

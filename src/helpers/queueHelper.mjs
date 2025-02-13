@@ -35,11 +35,9 @@ messageQueue.process(async (job) => {
 
 messageQueue.on("failed", (job, err) => {
   logger.error(`Job failed for chatId ${job.data.chatId}: ${err.message}`);
-  // Optionally, you can implement further actions like notifying the user
 });
 
 export async function addMessageToQueue(chatId, content, options, delay) {
-  // Save scheduled message and capture its id
   const scheduledMessageId = await saveScheduledMessage(
     chatId,
     content,
@@ -64,7 +62,6 @@ export async function addMessageToQueue(chatId, content, options, delay) {
         await updateMessageStatus(scheduledMessageId, "sent");
       } catch (error) {
         logger.error(`Cron job send failed: ${error.message}`);
-        // Optionally, you can implement further actions like notifying the user
       }
     });
   }
@@ -83,7 +80,6 @@ export function processScheduledMessages() {
             message.options
           );
           logger.info(`Scheduled message sent to ${message.chatId}`);
-          // Update message status to 'sent' in MongoDB
           await updateMessageStatus(message._id, "sent");
         } catch (error) {
           logger.error(`Failed to send scheduled message: ${error.message}`);
