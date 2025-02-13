@@ -1,20 +1,12 @@
 import "dotenv/config";
-import winston from "winston";
+import pino from "pino";
 
 const isLoggerEnabled = process.env.ENABLE_LOGGER === "true";
 const logLevel = isLoggerEnabled ? "debug" : "error";
 
-const logger = winston.createLogger({
+const logger = pino({
   level: logLevel,
-  transports: [
-    new winston.transports.Console({
-      level: logLevel,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      ),
-    }),
-  ],
+  timestamp: pino.stdTimeFunctions.isoTime,
 });
 
 export default logger;

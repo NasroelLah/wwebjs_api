@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "fastify-plugin": "^5.0.1",
     "luxon": "^3.5.0",
     "mongodb": "^6.13.0",
+    "pino": "^9.6.0",
     "qrcode-terminal": "^0.12.0",
     "redis": "^4.7.0",
     "undici": "^6.21.1",
