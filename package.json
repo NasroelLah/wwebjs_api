@@ -4,7 +4,8 @@
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
-    "start": "node src/index.mjs"
+    "start": "node src/index.mjs",
+    "lint": "eslint src/**/*.mjs"
   },
   "dependencies": {
     "@fastify/compress": "^8.0.1",

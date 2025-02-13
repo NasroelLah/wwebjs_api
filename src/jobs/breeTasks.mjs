@@ -1,4 +1,4 @@
-import Bree from "bree";
+import { Bree } from "bree";
 import path from "path";
 
 const bree = new Bree({

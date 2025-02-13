@@ -2,7 +2,6 @@ import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
 import {
-  API_KEY,
   HOST_PORT,
   ENABLE_LOGGER,
   RATE_LIMIT,
@@ -15,7 +14,11 @@ import bree from "./jobs/breeTasks.mjs";
 
 const fastify = Fastify({ logger: ENABLE_LOGGER });
 
-fastify.addHook("onSend", async (request, reply, payload) => {
+fastify.addHook("onRequest", async (request) => {
+  logger.info({ req: request }, "incoming request");
+});
+
+fastify.addHook("onSend", async (request, _reply, payload) => {
   let data;
   try {
     data = JSON.parse(payload);
@@ -25,8 +28,20 @@ fastify.addHook("onSend", async (request, reply, payload) => {
   const response = {
     status: data.status || "success",
     message: data.message || "",
+    ...(data.data && { data: data.data }),
   };
   return JSON.stringify(response);
+});
+
+fastify.addHook("onResponse", async (request, reply) => {
+  logger.info(
+    {
+      req: request,
+      res: reply,
+      responseTime: reply.getResponseTime(),
+    },
+    "request completed"
+  );
 });
 
 fastify.register(compress);
@@ -35,8 +50,8 @@ fastify.register(rateLimit, {
   timeWindow: RATE_LIMIT_EXPIRE * 1000,
 });
 
-fastify.addHook("preHandler", async (request, reply) => {
-  if (!validateApiKey(request, reply)) return;
+fastify.addHook("preHandler", async (request) => {
+  if (!validateApiKey(request)) return;
 });
 
 fastify.register(messageRoute);

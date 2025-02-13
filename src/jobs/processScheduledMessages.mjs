@@ -21,7 +21,7 @@ function getDelayMs() {
   return Number(delaySetting) * 1000;
 }
 
-async function processScheduledMessagesJob() {
+(async () => {
   const messages = await getScheduledMessages();
   const now = new Date();
   await Promise.all(
@@ -40,7 +40,5 @@ async function processScheduledMessagesJob() {
       }
     })
   );
-}
-
-await processScheduledMessagesJob();
-process.exit(0); // Ensure the worker exits after the job finishes
+  process.exit(0); // Ensure the worker exits after the job finishes
+})();

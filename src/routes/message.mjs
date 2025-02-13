@@ -5,8 +5,9 @@ import { buildMessageContent } from "../helpers/messageHelper.mjs";
 import { scheduleDispatch } from "../helpers/scheduleHelper.mjs";
 import { sendMessageWithRetry } from "../helpers/sendHelper.mjs";
 import { isValidScheduleFormat } from "../helpers/validationHelper.mjs";
+import { client } from "../whatsappClient.mjs";
 
-export async function messageRoute(fastify, options) {
+export async function messageRoute(fastify) {
   fastify.addHook("preHandler", async (request, reply) => {
     if (!validateApiKey(request, reply)) return;
   });
@@ -69,6 +70,67 @@ export async function messageRoute(fastify, options) {
         return reply.code(500).send({
           status: "error",
           message: "Failed to send message.",
+        });
+      }
+    }
+  );
+
+  fastify.get(
+    "/device-status",
+    {
+      schema: {
+        description: "Get connected device information.",
+      },
+    },
+    async (request, reply) => {
+      try {
+        const info = await client.info;
+        return reply.code(200).send({
+          status: "success",
+          message: "Device information retrieved successfully.",
+          data: info,
+        });
+      } catch (error) {
+        logger.error(`Error retrieving device information: ${error.message}`);
+        return reply.code(500).send({
+          status: "error",
+          message: "Failed to retrieve device information.",
+        });
+      }
+    }
+  );
+
+  fastify.get(
+    "/device-connect",
+    {
+      schema: {
+        description: "Get QR code for connecting device.",
+      },
+    },
+    async (request, reply) => {
+      try {
+        if (client.info && client.info.wid) {
+          return reply.code(200).send({
+            status: "success",
+            message: "Device already connected.",
+          });
+        }
+
+        let qrCode;
+        client.on("qr", (qr) => {
+          qrCode = qr;
+        });
+        client.initialize();
+        return reply.code(200).send({
+          status: "success",
+          message: "QR code generated successfully.",
+          data: qrCode,
+        });
+      } catch (error) {
+        logger.error(`Error generating QR code: ${error.message}`);
+        return reply.code(500).send({
+          status: "error",
+          message: "Failed to generate QR code.",
         });
       }
     }

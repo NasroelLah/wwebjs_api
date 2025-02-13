@@ -62,7 +62,6 @@ client.on("message", async (msg) => {
     payload.fromNumber = senderNumber;
   }
   try {
-    // Updated: Using Undici to send the webhook
     const response = await request(WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
