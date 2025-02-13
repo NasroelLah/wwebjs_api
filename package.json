@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
@@ -20,7 +20,6 @@
     "qrcode-terminal": "^0.12.0",
     "redis": "^4.7.0",
     "undici": "^6.21.1",
-    "whatsapp-web.js": "^1.26.0",
-    "winston": "^3.17.0"
+    "whatsapp-web.js": "^1.26.0"
   }
 }
