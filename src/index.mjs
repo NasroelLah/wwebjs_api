@@ -1,3 +1,4 @@
+/* global process */
 import { initializeWhatsApp } from "./whatsappClient.mjs";
 import { startServer } from "./server.mjs";
 

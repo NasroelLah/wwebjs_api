@@ -1,3 +1,4 @@
+/* global process */
 import { DateTime } from "luxon";
 import { addMessageToQueue } from "./queueHelper.mjs";
 import logger from "../logger.mjs";

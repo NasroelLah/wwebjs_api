@@ -1,3 +1,4 @@
+/* global process */
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
@@ -15,7 +16,7 @@ import bree from "./jobs/breeTasks.mjs";
 const fastify = Fastify({ logger: ENABLE_LOGGER });
 
 fastify.addHook("onRequest", async (request) => {
-  logger.info({ req: request }, "incoming request");
+  logger.info(`${request.method} ${request.url}`);
 });
 
 fastify.addHook("onSend", async (request, _reply, payload) => {
@@ -33,14 +34,15 @@ fastify.addHook("onSend", async (request, _reply, payload) => {
   return JSON.stringify(response);
 });
 
+fastify.addHook("onRequest", (request, reply, done) => {
+  request.startTime = Date.now();
+  done();
+});
+
 fastify.addHook("onResponse", async (request, reply) => {
+  const responseTime = Date.now() - request.startTime;
   logger.info(
-    {
-      req: request,
-      res: reply,
-      responseTime: reply.getResponseTime(),
-    },
-    "request completed"
+    `${request.method} ${request.url} completed in ${responseTime}ms with status ${reply.statusCode}`
   );
 });
 

@@ -1,3 +1,4 @@
+/* global process */
 import { MongoClient, ObjectId } from "mongodb";
 import logger from "../logger.mjs";
 

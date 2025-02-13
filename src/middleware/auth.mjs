@@ -1,3 +1,4 @@
+/* global process */
 import "dotenv/config";
 
 export function validateApiKey(request, reply) {

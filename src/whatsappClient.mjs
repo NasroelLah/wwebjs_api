@@ -1,3 +1,4 @@
+/* global process */
 import qrcode from "qrcode-terminal";
 import { createRequire } from "module";
 import { request } from "undici";
@@ -10,9 +11,12 @@ export const client = new Client({
   authStrategy: new LocalAuth(),
 });
 
+export let lastQr = null;
+
 client.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
-  console.log("Scan QR code");
+  lastQr = qr;
+  console.log("QR code event received");
 });
 
 client.on("ready", () => {

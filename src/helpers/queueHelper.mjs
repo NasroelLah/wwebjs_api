@@ -1,3 +1,4 @@
+/* global process */
 import Queue from "bull";
 import { sendMessageWithRetry } from "./sendHelper.mjs";
 import logger from "../logger.mjs";
@@ -15,7 +16,6 @@ const queueOptions = useRedis
 
 const messageQueue = useRedis ? new Queue("messageQueue", queueOptions) : null;
 
-// Helper functions for additional delay based on env
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -36,7 +36,6 @@ if (useRedis) {
   messageQueue.process(async (job) => {
     const { chatId, content, options, scheduledMessageId } = job.data;
     try {
-      // Apply the additional delay before sending
       const additionalDelay = getAdditionalDelayMs();
       logger.info(
         `Applying additional delay of ${additionalDelay} ms before sending message to ${chatId}`

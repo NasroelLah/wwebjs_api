@@ -1,3 +1,4 @@
+/* global process */
 import { DateTime } from "luxon";
 
 export function isValidScheduleFormat(schedule) {

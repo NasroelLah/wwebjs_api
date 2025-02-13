@@ -1,6 +1,6 @@
 {
   "name": "nas-wapi",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "main": "src/index.mjs",
   "type": "module",
   "scripts": {
@@ -22,5 +22,10 @@
     "redis": "^4.7.0",
     "undici": "^6.21.1",
     "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.1",
+    "globals": "^15.15.0"
   }
 }

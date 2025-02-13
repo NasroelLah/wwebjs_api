@@ -1,3 +1,4 @@
+/* global process */
 import {
   getScheduledMessages,
   updateMessageStatus,
@@ -40,5 +41,5 @@ function getDelayMs() {
       }
     })
   );
-  process.exit(0); // Ensure the worker exits after the job finishes
+  process.exit(0);
 })();
