@@ -22,24 +22,36 @@ function getDelayMs() {
   return Number(delaySetting) * 1000;
 }
 
+if (globalThis.processScheduledMessagesRunning) {
+  console.log('Job "processScheduledMessages.mjs" is already running');
+  process.exit(0);
+}
+globalThis.processScheduledMessagesRunning = true;
+
 (async () => {
-  const messages = await getScheduledMessages();
-  const now = new Date();
-  await Promise.all(
-    messages.map(async (msg) => {
-      if (new Date(msg.scheduledTime) <= now) {
-        try {
-          const delayMs = getDelayMs();
-          logger.info(`Delaying message to ${msg.chatId} for ${delayMs} ms`);
-          await sleep(delayMs);
-          await sendMessageWithRetry(msg.chatId, msg.content, msg.options);
-          await updateMessageStatus(msg._id, "sent");
-          logger.info(`Scheduled message sent to ${msg.chatId}`);
-        } catch (error) {
-          logger.error(`Error processing message ${msg._id}: ${error.message}`);
+  try {
+    const messages = await getScheduledMessages();
+    const now = new Date();
+    await Promise.all(
+      messages.map(async (msg) => {
+        if (new Date(msg.scheduledTime) <= now) {
+          try {
+            const delayMs = getDelayMs();
+            logger.info(`Delaying message to ${msg.chatId} for ${delayMs} ms`);
+            await sleep(delayMs);
+            await sendMessageWithRetry(msg.chatId, msg.content, msg.options);
+            await updateMessageStatus(msg._id, "sent");
+            logger.info(`Scheduled message sent to ${msg.chatId}`);
+          } catch (error) {
+            logger.error(
+              `Error processing message ${msg._id}: ${error.message}`
+            );
+          }
         }
-      }
-    })
-  );
+      })
+    );
+  } finally {
+    globalThis.processScheduledMessagesRunning = false;
+  }
   process.exit(0);
 })();

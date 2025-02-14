@@ -21,9 +21,13 @@ export async function buildMessageContent({
     if (location?.latitude === undefined || location?.longitude === undefined) {
       throw new Error("Location data is required for location message.");
     }
-    messageContent =
-      `Location: ${location.latitude}, ${location.longitude}` +
-      (location.address ? ` (${location.address})` : "");
+    messageContent = {
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        ...(location.address && { description: location.address }),
+      },
+    };
   } else {
     throw new Error("Unsupported message type.");
   }
