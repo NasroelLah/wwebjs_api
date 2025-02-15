@@ -12,7 +12,7 @@ const client = new MongoClient(uri, {
 
 async function connect() {
   if (!client.topology?.isConnected()) await client.connect();
-  return client.db("wapi").collection("scheduledMessages");
+  return client.db(process.env.MONGODB_DB).collection("scheduledMessages");
 }
 
 export async function saveScheduledMessage(chatId, content, options, delay) {
