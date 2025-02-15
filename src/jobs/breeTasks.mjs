@@ -1,4 +1,3 @@
-/* eslint-disable import/no-unresolved */
 import Bree from "bree";
 import path from "path";
 

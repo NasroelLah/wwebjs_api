@@ -30,7 +30,7 @@ fastify.addHook("onSend", async (request, _reply, payload) => {
   let data;
   try {
     data = JSON.parse(payload);
-  } catch (e) {
+  } catch {
     data = payload;
   }
   const response = {
