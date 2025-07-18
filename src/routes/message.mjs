@@ -10,10 +10,13 @@ import {
   connectDevice,
   removeDevice,
 } from "../controllers/deviceController.mjs";
+import { messageSchema, successResponseSchema, errorResponseSchema } from "../schemas/messageSchemas.mjs";
+import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
 
 export async function messageRoute(fastify) {
+  // Apply auth to all routes in this plugin
   fastify.addHook("preHandler", async (request, reply) => {
-    if (!validateApiKey(request, reply)) return;
+    validateApiKey(request, reply);
   });
 
   fastify.post(
@@ -21,9 +24,28 @@ export async function messageRoute(fastify) {
     {
       schema: {
         description: "Send a message to a specified recipient.",
+        tags: ['Messages'],
+        ...messageSchema,
+        response: {
+          200: successResponseSchema,
+          400: errorResponseSchema,
+          401: errorResponseSchema,
+          500: errorResponseSchema
+        }
       },
+      attachValidation: true
     },
     async (request, reply) => {
+      // Handle validation errors
+      if (request.validationError) {
+        throw new AppError(
+          ErrorTypes.VALIDATION_ERROR,
+          HttpStatusCodes.BAD_REQUEST,
+          `Validation failed: ${request.validationError.message}`,
+          true
+        );
+      }
+
       const {
         recipient_type,
         to,
@@ -34,14 +56,19 @@ export async function messageRoute(fastify) {
         schedule,
         caption,
       } = request.body;
+      
       const chatId = recipient_type === "group" ? `${to}@g.us` : `${to}@c.us`;
+      
       try {
         if (schedule && !isValidScheduleFormat(schedule)) {
-          return reply.code(400).send({
-            status: "error",
-            message: "Invalid schedule format.",
-          });
+          throw new AppError(
+            ErrorTypes.VALIDATION_ERROR,
+            HttpStatusCodes.BAD_REQUEST,
+            "Invalid schedule format. Expected: YYYY-MM-DD HH:MM:SS",
+            true
+          );
         }
+        
         const { messageContent, sendOptions } = await buildMessageContent({
           type,
           text,
@@ -49,6 +76,7 @@ export async function messageRoute(fastify) {
           location,
           caption,
         });
+        
         logger.info(`Preparing to send ${type} message to ${chatId}`);
 
         if (
@@ -61,18 +89,28 @@ export async function messageRoute(fastify) {
             message: "Message scheduled successfully.",
           });
         }
+        
         await sendMessageWithRetry(chatId, messageContent, sendOptions);
         logger.info(`Message sent to ${chatId}`);
+        
         return reply.code(200).send({
           status: "success",
           message: "Message sent successfully.",
         });
       } catch (error) {
         logger.error(`Processing error: ${error.message}`);
-        return reply.code(500).send({
-          status: "error",
-          message: "Failed to send message.",
-        });
+        
+        if (error instanceof AppError) {
+          throw error; // Re-throw AppError to be handled by global handler
+        }
+        
+        // Wrap unknown errors
+        throw new AppError(
+          ErrorTypes.WHATSAPP_ERROR,
+          HttpStatusCodes.INTERNAL_SERVER_ERROR,
+          "Failed to send message",
+          true
+        );
       }
     }
   );

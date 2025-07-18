@@ -6,16 +6,22 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.mjs",
-    "lint": "eslint src/**/*.mjs"
+    "dev": "node --watch src/index.mjs",
+    "lint": "eslint src/**/*.mjs",
+    "lint:fix": "eslint src/**/*.mjs --fix",
+    "test": "node --test src/**/*.test.mjs",
+    "health-check": "curl -f http://localhost:3000/health || exit 1"
   },
   "dependencies": {
     "@fastify/compress": "^8.0.1",
+    "@fastify/cors": "^10.1.0",
     "@fastify/helmet": "^13.0.1",
     "@fastify/rate-limit": "^10.2.2",
     "bree": "^9.2.4",
     "bull": "^4.16.5",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
+    "lowdb": "^3.0.0",
     "luxon": "^3.5.0",
     "mongodb": "^6.13.0",
     "pino": "^9.6.0",
@@ -23,12 +29,24 @@
     "redis": "^4.7.0",
     "undici": "^6.21.1",
     "whatsapp-web.js": "^1.26.0",
-    "xss": "^1.0.15",
-    "lowdb": "^3.0.0"
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
     "eslint": "^9.20.1",
-    "globals": "^15.15.0"
-  }
+    "globals": "^15.15.0",
+    "pino-pretty": "^12.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "whatsapp",
+    "api",
+    "messaging",
+    "fastify",
+    "webhook"
+  ],
+  "author": "NasroelLah",
+  "license": "MIT"
 }
