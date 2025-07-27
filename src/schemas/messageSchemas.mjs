@@ -14,7 +14,7 @@ export const messageSchema = {
         type: 'string',
         pattern: '^[0-9]+$',
         minLength: 10,
-        maxLength: 15
+        maxLength: 20 // Adjusted maxLength to allow for group IDs
       },
       type: {
         type: 'string',
