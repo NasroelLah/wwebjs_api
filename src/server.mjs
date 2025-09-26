@@ -15,8 +15,12 @@ import { messageRoute } from "./routes/message.mjs";
 import { batchMessageRoute } from "./routes/batchMessage.mjs";
 import { healthRoute } from "./routes/health.mjs";
 import { rootRoute } from "./routes/root.mjs";
+
+// Import workflow routes
+import messageWorkflowRoute from "./routes/workflows/message.mjs";
+import batchMessageWorkflowRoute from "./routes/workflows/batchMessage.mjs";
+import cleanupWorkflowRoute from "./routes/workflows/cleanup.mjs";
 import logger from "./logger.mjs";
-import bree from "./jobs/breeTasks.mjs";
 import { errorHandler } from "./errors/ErrorHandler.mjs";
 
 const fastify = Fastify({ 
@@ -121,6 +125,13 @@ fastify.register(messageRoute);
 fastify.register(batchMessageRoute);
 fastify.register(healthRoute);
 
+// Register workflow routes
+fastify.register(async function (fastify) {
+  fastify.register(messageWorkflowRoute, { prefix: '/api/workflows/message' });
+  fastify.register(batchMessageWorkflowRoute, { prefix: '/api/workflows/batch-message' });
+  fastify.register(cleanupWorkflowRoute, { prefix: '/api/workflows/cleanup' });
+});
+
 // Global error handler
 fastify.setErrorHandler(async (error, request, reply) => {
   await errorHandler.handleError(error, reply);
@@ -133,7 +144,6 @@ export function startServer() {
       process.exit(1);
     }
     logger.info(`Server running at ${address}`);
-    bree.start();
   });
 }
 

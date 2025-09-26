@@ -74,24 +74,20 @@ export const messageConfig = {
   delay: getEnvVar('MESSAGE_DELAY', 0, 'number'),
 };
 
-// Queue Configuration
-export const queueConfig = {
-  connection: getEnvVar('QUEUE_CONNECTION', 'cron', 'string'),
-  redis: {
-    host: getEnvVar('REDIS_HOST', '127.0.0.1', 'string'),
-    port: getEnvVar('REDIS_PORT', 6379, 'number'),
-    user: getEnvVar('REDIS_USER', '', 'string'),
-    password: getEnvVar('REDIS_PASSWORD', '', 'string'),
-  },
+// Workflow Configuration
+export const workflowConfig = {
+  qstashUrl: getEnvVar('QSTASH_URL', 'https://qstash.upstash.io/v2', 'string'),
+  qstashToken: getEnvVar('QSTASH_TOKEN', null, 'string', NODE_ENV === 'production'),
+  qstashCurrentSigningKey: getEnvVar('QSTASH_CURRENT_SIGNING_KEY', null, 'string', NODE_ENV === 'production'),
+  qstashNextSigningKey: getEnvVar('QSTASH_NEXT_SIGNING_KEY', null, 'string', NODE_ENV === 'production'),
+  baseUrl: getEnvVar('WORKFLOW_BASE_URL', `http://localhost:${getEnvVar('HOST_PORT', 3000, 'number')}`, 'string'),
 };
 
 // Database Configuration
 export const dbConfig = {
-  mongodb: {
-    uri: getEnvVar('MONGODB_URI', null, 'string'),
-    user: getEnvVar('MONGODB_USER', '', 'string'),
-    password: getEnvVar('MONGODB_PASSWORD', '', 'string'),
-    database: getEnvVar('MONGODB_DB', 'whatsapp_api', 'string'),
+  redis: {
+    url: getEnvVar('UPSTASH_REDIS_REST_URL', null, 'string', NODE_ENV === 'production'),
+    token: getEnvVar('UPSTASH_REDIS_REST_TOKEN', null, 'string', NODE_ENV === 'production'),
   },
 };
 

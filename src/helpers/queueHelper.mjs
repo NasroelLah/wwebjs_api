@@ -1,30 +1,13 @@
-/* global process */
-import Queue from "bull";
-import { sendMessageWithRetry } from "./sendHelper.mjs";
+import { workflowManager } from "./workflowHelper.mjs";
 import logger from "../logger.mjs";
-import { saveScheduledMessage, updateMessageStatus } from "./dbHelper.mjs";
-
-const useRedis = process.env.QUEUE_CONNECTION === "redis";
-const queueOptions = useRedis
-  ? {
-      redis: {
-        host: process.env.REDIS_HOST || "127.0.0.1",
-        port: process.env.REDIS_PORT || 6379,
-      },
-    }
-  : {};
-
-const messageQueue = useRedis ? new Queue("messageQueue", queueOptions) : null;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { messageConfig } from "../config.mjs";
 
 function getAdditionalDelayMs() {
-  const type = process.env.MESSAGE_DELAY_TYPE || "fixed";
-  const delaySetting = process.env.MESSAGE_DELAY || "0";
+  const type = messageConfig.delayType;
+  const delaySetting = messageConfig.delay;
+
   if (type === "random") {
-    const [minStr, maxStr] = delaySetting.split(",");
+    const [minStr, maxStr] = delaySetting.toString().split(",");
     const min = Number(minStr.trim()) * 1000;
     const max = Number(maxStr.trim()) * 1000;
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -32,47 +15,62 @@ function getAdditionalDelayMs() {
   return Number(delaySetting) * 1000;
 }
 
-if (useRedis) {
-  messageQueue.process(async (job) => {
-    const { chatId, content, options, scheduledMessageId } = job.data;
-    try {
-      const additionalDelay = getAdditionalDelayMs();
-      logger.info(
-        `Applying additional delay of ${additionalDelay} ms before sending message to ${chatId}`
-      );
-      await sleep(additionalDelay);
-
-      await sendMessageWithRetry(chatId, content, options);
-      logger.info(`Message sent to ${chatId} from Redis queue`);
-      if (scheduledMessageId)
-        await updateMessageStatus(scheduledMessageId, "sent");
-    } catch (error) {
-      logger.error(`Queue send failed: ${error.message}`);
-      throw error;
-    }
-  });
-
-  messageQueue.on("failed", (job, err) => {
-    logger.error(`Job failed for ${job.data.chatId}: ${err.message}`);
-  });
-}
-
+/**
+ * Add message to queue using Upstash Workflow
+ * @param {string} chatId - Target chat ID
+ * @param {Object} content - Message content
+ * @param {Object} options - Message options
+ * @param {number} delay - Delay in milliseconds
+ * @returns {string} - Message ID
+ */
 export async function addMessageToQueue(chatId, content, options, delay) {
-  const scheduledMessageId = await saveScheduledMessage(
-    chatId,
-    content,
-    options,
-    delay
-  );
+  try {
+    // Add additional delay based on configuration
+    const additionalDelay = getAdditionalDelayMs();
+    const totalDelay = delay + additionalDelay;
 
-  if (useRedis) {
-    messageQueue.add(
-      { chatId, content, options, scheduledMessageId },
-      { delay, attempts: 3, backoff: 5000 }
-    );
-  } else {
     logger.info(
-      `Message scheduled for ${chatId} in ${delay} ms (Bree will process it)`
+      `Scheduling message for ${chatId} with delay ${totalDelay}ms (original: ${delay}ms, additional: ${additionalDelay}ms)`
     );
+
+    // Use workflow manager to schedule the message
+    const messageId = await workflowManager.scheduleMessage(chatId, content, options, totalDelay);
+
+    logger.info(`Message queued successfully for ${chatId}, messageId: ${messageId}`);
+    return messageId;
+  } catch (error) {
+    logger.error({ error, chatId }, 'Failed to add message to queue');
+    throw error;
   }
 }
+
+/**
+ * Add multiple messages as a batch
+ * @param {Array} messages - Array of message objects
+ * @param {number} delayBetween - Delay between messages in milliseconds
+ * @returns {Object} - Batch result
+ */
+export async function addBatchMessagesToQueue(messages, delayBetween = 1000) {
+  try {
+    const additionalDelay = getAdditionalDelayMs();
+    const totalDelayBetween = delayBetween + additionalDelay;
+
+    logger.info(
+      `Scheduling batch of ${messages.length} messages with ${totalDelayBetween}ms delay between messages`
+    );
+
+    // Use workflow manager to schedule the batch
+    const result = await workflowManager.scheduleBatchMessages(messages, totalDelayBetween);
+
+    logger.info(`Batch messages queued successfully. BatchId: ${result.batchId}, Messages: ${result.messageCount}`);
+    return result;
+  } catch (error) {
+    logger.error({ error, messageCount: messages.length }, 'Failed to add batch messages to queue');
+    throw error;
+  }
+}
+
+/**
+ * Legacy compatibility - kept for backward compatibility
+ */
+export { addMessageToQueue as addMessageToWorkflow };

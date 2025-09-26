@@ -1,5 +1,5 @@
 /* global process */
-import { dbManager } from "../helpers/dbHelper.mjs";
+import { redisManager } from "../helpers/redisHelper.mjs";
 import { client } from "../whatsappClient.mjs";
 import logger from "../logger.mjs";
 import { appConfig } from "../config.mjs";
@@ -36,20 +36,20 @@ export async function healthRoute(fastify) {
       const startTime = Date.now();
       
       try {
-        // Check database connection
-        const dbHealthy = await dbManager.healthCheck();
+        // Check Redis connection
+        const redisHealthy = await redisManager.healthCheck();
         
         // Check WhatsApp client status
         const whatsappHealthy = client && client.info && client.info.wid;
         
         const health = {
-          status: (dbHealthy && whatsappHealthy) ? 'healthy' : 'degraded',
+          status: (redisHealthy && whatsappHealthy) ? 'healthy' : 'degraded',
           timestamp: new Date().toISOString(),
           uptime: process.uptime(),
           environment: appConfig.environment,
           version: process.env.npm_package_version || '1.11.1',
           services: {
-            database: dbHealthy ? 'healthy' : 'unhealthy',
+            database: redisHealthy ? 'healthy' : 'unhealthy',
             whatsapp: whatsappHealthy ? 'connected' : 'disconnected'
           },
           responseTime: Date.now() - startTime
@@ -120,13 +120,13 @@ export async function healthRoute(fastify) {
     async (request, reply) => {
       try {
         // Check critical dependencies
-        const dbHealthy = await dbManager.healthCheck();
+        const redisHealthy = await redisManager.healthCheck();
         
-        if (!dbHealthy) {
+        if (!redisHealthy) {
           return reply.status(503).send({
             status: 'not ready',
             timestamp: new Date().toISOString(),
-            reason: 'Database not available'
+            reason: 'Redis not available'
           });
         }
         
