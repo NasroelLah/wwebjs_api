@@ -66,6 +66,9 @@ class DatabaseManager {
 
   async healthCheck() {
     try {
+      if (!this.client || !this.isConnected) {
+        await this.connect();
+      }
       await this.client.db("admin").command({ ping: 1 });
       return true;
     } catch (error) {
