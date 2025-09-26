@@ -4,4 +4,6 @@ import { cleanupWorkflow } from "../../workflows/messageWorkflows.mjs";
  * Cleanup workflow endpoint
  * POST /api/workflows/cleanup
  */
-export const POST = cleanupWorkflow;
+export default function cleanupWorkflowRoute(fastify) {
+  fastify.post('/', cleanupWorkflow);
+}
