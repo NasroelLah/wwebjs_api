@@ -71,7 +71,58 @@ const { Client, LocalAuth } = wwebjs;
 
 ---
 
-### 2. **MongoDB Connection Check Improved**
+### 2. **Puppeteer Chrome v132 Compatibility Fix**
+
+**File:** `src/whatsappClient.mjs`
+
+**Issue:** After Chrome update to v132, Puppeteer throws `TargetCloseError: Protocol error (Target.setDiscoverTargets): Target closed`
+
+**Before:**
+```javascript
+puppeteer: {
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process',  // ❌ Causes issues with Chrome v132
+    '--disable-gpu'
+  ]
+}
+```
+
+**After:**
+```javascript
+puppeteer: {
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--disable-gpu'  // ✅ Removed --single-process
+  ]
+}
+```
+
+**Additional Fix:** Cleared cache folders `.wwebjs_auth` and `.wwebjs_cache`
+
+**Benefits:**
+- ✅ Compatible with Chrome v132+
+- ✅ QR code generation works properly
+- ✅ Client initialization successful
+- ✅ No more TargetCloseError
+
+**Reference:** [GitHub Issue #3439](https://github.com/pedroslopez/whatsapp-web.js/issues/3439)
+
+---
+
+### 3. **MongoDB Connection Check Improved**
 
 **File:** `src/helpers/dbHelper.mjs`
 
