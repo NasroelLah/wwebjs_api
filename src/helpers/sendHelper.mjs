@@ -1,8 +1,9 @@
 import { client, isClientReady } from "../whatsappClient.mjs";
 import logger from "../logger.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
-import pkg from "whatsapp-web.js";
-const { MessageMedia } = pkg;
+import wwebjs from "whatsapp-web.js";
+
+const { MessageMedia } = wwebjs;
 
 // Enhanced retry logic with exponential backoff
 export async function sendMessageWithRetry(chatId, content, options = {}) {

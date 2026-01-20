@@ -1,5 +1,6 @@
-import pkg from "whatsapp-web.js";
-const { MessageMedia } = pkg;
+import wwebjs from "whatsapp-web.js";
+
+const { MessageMedia } = wwebjs;
 
 export async function getMediaContent(media) {
   if (media.url) {

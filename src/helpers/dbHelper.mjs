@@ -12,8 +12,16 @@ class DatabaseManager {
   }
 
   async connect() {
-    if (this.isConnected && this.client?.topology?.isConnected()) {
-      return this.db;
+    // Forward-compatible connection check
+    if (this.isConnected && this.client) {
+      try {
+        // Verify connection is still alive
+        await this.client.db("admin").command({ ping: 1 });
+        return this.db;
+      } catch {
+        logger.warn('Connection lost, reconnecting...');
+        this.isConnected = false;
+      }
     }
 
     try {

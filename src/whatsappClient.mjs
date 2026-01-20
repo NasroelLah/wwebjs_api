@@ -1,12 +1,11 @@
 /* global process */
 import qrcode from "qrcode-terminal";
-import { createRequire } from "module";
 import { request } from "undici";
 import { WEBHOOK_URL } from "./config.mjs";
 import logger from "./logger.mjs";
+import wwebjs from "whatsapp-web.js";
 
-const require = createRequire(import.meta.url);
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { Client, LocalAuth } = wwebjs;
 
 export const client = new Client({
   authStrategy: new LocalAuth(),
@@ -19,7 +18,6 @@ export const client = new Client({
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--single-process',
       '--disable-gpu'
     ]
   }
