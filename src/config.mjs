@@ -103,9 +103,11 @@ export const appConfig = {
 // LLM Configuration
 export const llmConfig = {
   enabled: getEnvVar('LLM_ENABLED', false, 'boolean'),
-  provider: getEnvVar('LLM_PROVIDER', 'openai', 'string'), // openai, claude, gemini
+  provider: getEnvVar('LLM_PROVIDER', 'openai', 'string'), // openai, openai-compatible, claude, gemini
   apiKey: getEnvVar('LLM_API_KEY', null, 'string'),
   model: getEnvVar('LLM_MODEL', null, 'string'),
+  // OpenAI-compatible API settings (for local LLMs like Ollama, LM Studio, vLLM, etc.)
+  baseUrl: getEnvVar('LLM_BASE_URL', null, 'string'), // e.g., http://localhost:11434/v1
   systemPrompt: getEnvVar('LLM_SYSTEM_PROMPT', 'You are a helpful WhatsApp assistant. Be concise and friendly.', 'string'),
   maxTokens: getEnvVar('LLM_MAX_TOKENS', 500, 'number'),
   temperature: getEnvVar('LLM_TEMPERATURE', 0.7, 'number'),

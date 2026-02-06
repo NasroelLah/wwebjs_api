@@ -2,23 +2,42 @@ import { request } from "undici";
 import logger from "../logger.mjs";
 import { llmConfig } from "../config.mjs";
 
+/**
+ * OpenAI-compatible request formatter (shared between openai and openai-compatible)
+ */
+const openaiFormat = {
+  formatRequest: (messages, systemPrompt) => ({
+    model: llmConfig.model || "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ],
+    max_tokens: llmConfig.maxTokens,
+    temperature: llmConfig.temperature,
+  }),
+  formatHeaders: (apiKey) => {
+    const headers = { "Content-Type": "application/json" };
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+    return headers;
+  },
+  extractResponse: (data) => data.choices?.[0]?.message?.content || null,
+};
+
 const PROVIDERS = {
   openai: {
     url: "https://api.openai.com/v1/chat/completions",
-    formatRequest: (messages, systemPrompt) => ({
-      model: llmConfig.model || "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages,
-      ],
-      max_tokens: llmConfig.maxTokens,
-      temperature: llmConfig.temperature,
-    }),
-    formatHeaders: (apiKey) => ({
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    }),
-    extractResponse: (data) => data.choices?.[0]?.message?.content || null,
+    ...openaiFormat,
+  },
+
+  // OpenAI-compatible API (Ollama, LM Studio, vLLM, LocalAI, text-generation-webui, etc.)
+  "openai-compatible": {
+    url: () => {
+      const baseUrl = llmConfig.baseUrl?.replace(/\/$/, "") || "http://localhost:11434/v1";
+      return `${baseUrl}/chat/completions`;
+    },
+    ...openaiFormat,
   },
 
   claude: {
@@ -71,7 +90,8 @@ export async function generateResponse(messages, contactName = null) {
     return null;
   }
 
-  if (!llmConfig.apiKey) {
+  // API key is optional for openai-compatible (local LLMs don't require it)
+  if (!llmConfig.apiKey && provider !== "openai-compatible") {
     logger.error("LLM API key not configured");
     return null;
   }
@@ -119,6 +139,11 @@ export async function generateResponse(messages, contactName = null) {
 }
 
 export function isLLMConfigured() {
+  const provider = llmConfig.provider?.toLowerCase();
+  // openai-compatible doesn't require API key (local LLMs)
+  if (provider === "openai-compatible") {
+    return !!(llmConfig.enabled && llmConfig.provider);
+  }
   return !!(llmConfig.enabled && llmConfig.apiKey && llmConfig.provider);
 }
 
@@ -127,6 +152,7 @@ export function getLLMInfo() {
     enabled: llmConfig.enabled,
     provider: llmConfig.provider,
     model: llmConfig.model,
+    baseUrl: llmConfig.baseUrl || null,
     configured: isLLMConfigured(),
   };
 }
