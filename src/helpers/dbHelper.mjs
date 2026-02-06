@@ -1,4 +1,3 @@
-/* global process */
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import { join, dirname } from "path";

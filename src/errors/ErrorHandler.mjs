@@ -1,4 +1,3 @@
-/* global process */
 import logger from '../logger.mjs';
 import { AppError } from './AppError.mjs';
 

@@ -85,7 +85,7 @@ class QueueMonitor {
       : 0;
 
     let status = 'healthy';
-    let issues = [];
+    const issues = [];
 
     // Check for high failure rate
     if (failureRate > 20) {

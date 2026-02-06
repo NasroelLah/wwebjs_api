@@ -7,8 +7,8 @@ export async function buildMessageContent({
   location,
   caption,
 }) {
-  let messageContent,
-    sendOptions = {};
+  let messageContent;
+  const sendOptions = {};
   if (type === "text") {
     if (!text?.body) throw new Error("Text body is required for text message.");
     messageContent = text.body;

@@ -1,4 +1,3 @@
-/* global process */
 import { dbManager } from "../helpers/dbHelper.mjs";
 import { client } from "../whatsappClient.mjs";
 import logger from "../logger.mjs";

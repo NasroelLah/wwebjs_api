@@ -1,4 +1,3 @@
-/* global process */
 import Queue from "bull";
 import { sendMessageWithRetry } from "./sendHelper.mjs";
 import logger from "../logger.mjs";

@@ -1,4 +1,3 @@
-/* global process */
 import dotenv from "dotenv";
 import { AppError, ErrorTypes, HttpStatusCodes } from "./errors/AppError.mjs";
 
