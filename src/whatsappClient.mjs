@@ -55,6 +55,7 @@ export const client = new Client({
 export let lastQr = null;
 export let clientState = 'DISCONNECTED'; // DISCONNECTED, CONNECTING, CONNECTED, READY
 
+// QR code generated - need to scan
 client.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
   lastQr = qr;
@@ -62,38 +63,54 @@ client.on("qr", (qr) => {
   logger.info("QR code generated - scan to connect");
 });
 
-
-
+// Session authenticated (after QR scan or from saved session)
 client.on("authenticated", () => {
   clientState = 'CONNECTED';
-  logger.info("WhatsApp client authenticated");
+  logger.info("WhatsApp client authenticated - waiting for ready...");
+  
+  // Fallback: jika ready tidak emit dalam 60 detik, coba cek manual
+  setTimeout(() => {
+    if (clientState === 'CONNECTED') {
+      logger.warn("Ready event not received after 60s, checking client info...");
+      if (client.info && client.info.wid) {
+        clientState = 'READY';
+        logger.info("Client has info, forcing READY state");
+      }
+    }
+  }, 60000);
 });
 
-// Loading complete - client is truly ready for API calls
+// Loading screen progress
+client.on("loading_screen", (percent, message) => {
+  logger.info({ percent, message }, "WhatsApp loading");
+  // Loading 100% biasanya diikuti ready, tapi kadang tidak
+  if (percent === 100) {
+    logger.info("Loading complete, waiting for ready event...");
+  }
+});
+
+// Client fully ready for API calls
 client.on("ready", () => {
   clientState = 'READY';
-  lastQr = null; // Clear QR after successful connection
-  logger.info("WhatsApp client is ready for API calls");
+  lastQr = null;
+  logger.info("WhatsApp client is READY for API calls");
 });
 
+// Authentication failed
 client.on("auth_failure", (msg) => {
   clientState = 'DISCONNECTED';
   logger.error({ message: msg }, "WhatsApp authentication failed");
 });
 
+// Client disconnected
 client.on("disconnected", (reason) => {
   clientState = 'DISCONNECTED';
   logger.warn({ reason }, "WhatsApp client disconnected");
 });
 
-// Add loading event handler
-client.on("loading_screen", (percent, message) => {
-  logger.info({ percent, message }, "WhatsApp loading");
-});
-
-// Add change_state event handler
+// Internal state change (for debugging)
 client.on("change_state", (state) => {
-  logger.info({ state }, "WhatsApp state changed");
+  logger.debug({ state, currentClientState: clientState }, "WhatsApp internal state changed");
 });
 
 // Message received
@@ -363,9 +380,19 @@ export function initializeWhatsApp() {
 }
 
 export function getClientState() {
+  // Jika state masih CONNECTED tapi client.info sudah ada, update ke READY
+  if (clientState === 'CONNECTED' && client.info && client.info.wid) {
+    clientState = 'READY';
+  }
   return clientState;
 }
 
 export function isClientReady() {
-  return clientState === 'READY';
+  // Ready jika state READY atau jika CONNECTED dan client.info tersedia
+  if (clientState === 'READY') return true;
+  if (clientState === 'CONNECTED' && client.info && client.info.wid) {
+    clientState = 'READY';
+    return true;
+  }
+  return false;
 }
