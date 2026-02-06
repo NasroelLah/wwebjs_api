@@ -219,4 +219,4 @@ process.on("uncaughtException", async (error) => {
   }
 });
 
-export { pkg as packageInfo };
+

@@ -3,8 +3,13 @@
  * @module routes/root
  */
 
-import { packageInfo } from "../server.mjs";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { appConfig } from "../config.mjs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"), "utf-8"));
 
 /**
  * Root route plugin
@@ -31,9 +36,9 @@ export async function rootRoute(fastify) {
     },
   }, async (_request, reply) => {
     return reply.send({
-      name: packageInfo.name,
-      version: packageInfo.version,
-      description: packageInfo.description || "WhatsApp Web API",
+      name: pkg.name,
+      version: pkg.version,
+      description: pkg.description || "WhatsApp Web API",
       environment: appConfig.environment,
       documentation: "/docs",
     });
@@ -57,7 +62,7 @@ export async function rootRoute(fastify) {
     },
   }, async (_request, reply) => {
     return reply.send({
-      version: packageInfo.version,
+      version: pkg.version,
       node_version: process.version,
       environment: appConfig.environment,
     });
