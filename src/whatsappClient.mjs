@@ -62,14 +62,18 @@ client.on("qr", (qr) => {
   logger.info("QR code generated - scan to connect");
 });
 
-client.on("ready", () => {
-  clientState = 'READY';
-  logger.info("WhatsApp client is ready");
-});
+
 
 client.on("authenticated", () => {
   clientState = 'CONNECTED';
   logger.info("WhatsApp client authenticated");
+});
+
+// Loading complete - client is truly ready for API calls
+client.on("ready", () => {
+  clientState = 'READY';
+  lastQr = null; // Clear QR after successful connection
+  logger.info("WhatsApp client is ready for API calls");
 });
 
 client.on("auth_failure", (msg) => {
