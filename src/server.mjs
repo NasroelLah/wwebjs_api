@@ -19,6 +19,7 @@ import { contactRoute } from "./routes/contact.mjs";
 import { chatRoute } from "./routes/chat.mjs";
 import { groupRoute } from "./routes/group.mjs";
 import { messageActionsRoute } from "./routes/messageActions.mjs";
+import { autoResponseRoute } from "./routes/autoResponse.mjs";
 import logger from "./logger.mjs";
 import bree from "./jobs/breeTasks.mjs";
 import { errorHandler } from "./errors/ErrorHandler.mjs";
@@ -128,6 +129,7 @@ fastify.register(contactRoute);
 fastify.register(chatRoute);
 fastify.register(groupRoute);
 fastify.register(messageActionsRoute);
+fastify.register(autoResponseRoute);
 
 // Global error handler
 fastify.setErrorHandler(async (error, request, reply) => {

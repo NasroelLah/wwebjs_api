@@ -1,10 +1,21 @@
 import qrcode from "qrcode-terminal";
 import { request } from "undici";
-import { WEBHOOK_URL, webhookConfig } from "./config.mjs";
+import { WEBHOOK_URL, webhookConfig, llmConfig } from "./config.mjs";
 import logger from "./logger.mjs";
 import wwebjs from "whatsapp-web.js";
 
 const { Client, LocalAuth } = wwebjs;
+
+// LLM imports (lazy loaded)
+let llmHelper = null;
+let conversationHelper = null;
+
+async function loadLLMModules() {
+  if (!llmHelper) {
+    llmHelper = await import("./helpers/llmHelper.mjs");
+    conversationHelper = await import("./helpers/conversationHelper.mjs");
+  }
+}
 
 async function sendWebhook(event, data) {
   if (!WEBHOOK_URL) return;
@@ -97,6 +108,7 @@ client.on("message", async (msg) => {
     if (parts.length >= 1) senderNumber = parts[parts.length - 1].replace("@c.us", "");
   }
 
+  // Send webhook
   await sendWebhook("message", {
     id: msg.id._serialized,
     from: cleanedFrom,
@@ -109,7 +121,113 @@ client.on("message", async (msg) => {
     hasMedia: msg.hasMedia,
     isForwarded: msg.isForwarded,
   });
+
+  // LLM Auto-Response
+  await handleLLMAutoResponse(msg, isGroup, cleanedFrom);
 });
+
+// LLM Auto-Response Handler
+async function handleLLMAutoResponse(msg, isGroup, contactId) {
+  // Check if LLM is enabled
+  if (!llmConfig.enabled) return;
+
+  // Skip non-text messages
+  if (msg.type !== "chat" || !msg.body) return;
+
+  // Skip own messages
+  if (msg.fromMe) return;
+
+  // Skip groups if configured
+  if (isGroup && llmConfig.excludeGroups) return;
+
+  // Skip channels if configured
+  if (msg.isChannel && llmConfig.excludeChannels) return;
+
+  // Check trigger mode
+  const body = msg.body.trim();
+  let shouldRespond = false;
+  let messageContent = body;
+
+  switch (llmConfig.triggerMode) {
+    case "all":
+      shouldRespond = true;
+      break;
+    case "prefix":
+      if (body.startsWith(llmConfig.triggerPrefix)) {
+        shouldRespond = true;
+        messageContent = body.slice(llmConfig.triggerPrefix.length).trim();
+      }
+      break;
+    case "keyword": {
+      const keywords = llmConfig.triggerKeywords.split(",").map((k) => k.trim().toLowerCase());
+      const lowerBody = body.toLowerCase();
+      shouldRespond = keywords.some((kw) => kw && lowerBody.includes(kw));
+      break;
+    }
+    default:
+      shouldRespond = false;
+  }
+
+  if (!shouldRespond || !messageContent) return;
+
+  try {
+    await loadLLMModules();
+
+    // Check if LLM is configured
+    if (!llmHelper.isLLMConfigured()) {
+      logger.warn("LLM enabled but not configured properly");
+      return;
+    }
+
+    // Check rate limit
+    if (!conversationHelper.checkRateLimit(contactId)) {
+      logger.debug({ contactId }, "Rate limited");
+      return;
+    }
+
+    // Get chat and send typing indicator
+    const chat = await msg.getChat();
+    await chat.sendStateTyping();
+
+    // Get contact name for personalization
+    let contactName = null;
+    try {
+      const contact = await msg.getContact();
+      contactName = contact.pushname || contact.name || null;
+    } catch {
+      // Ignore contact fetch errors
+    }
+
+    // Get conversation history
+    const history = await conversationHelper.getConversationHistory(
+      contactId,
+      llmConfig.historyLimit
+    );
+
+    // Save user message to history
+    await conversationHelper.saveMessage(contactId, "user", messageContent);
+
+    // Add current message to history
+    const messages = [...history, { role: "user", content: messageContent }];
+
+    // Generate LLM response
+    const response = await llmHelper.generateResponse(messages, contactName);
+
+    // Clear typing indicator
+    await chat.clearState();
+
+    if (response) {
+      // Save assistant response to history
+      await conversationHelper.saveMessage(contactId, "assistant", response);
+
+      // Send reply
+      await msg.reply(response);
+      logger.info({ contactId, provider: llmConfig.provider }, "LLM auto-response sent");
+    }
+  } catch (error) {
+    logger.error({ error: error.message, contactId }, "LLM auto-response failed");
+  }
+}
 
 // Message created (includes sent messages)
 client.on("message_create", async (msg) => {

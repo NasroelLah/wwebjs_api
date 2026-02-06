@@ -100,3 +100,22 @@ export const appConfig = {
   isDevelopment: NODE_ENV === 'development',
   isProduction: NODE_ENV === 'production',
 };
+
+// LLM Configuration
+export const llmConfig = {
+  enabled: getEnvVar('LLM_ENABLED', false, 'boolean'),
+  provider: getEnvVar('LLM_PROVIDER', 'openai', 'string'), // openai, claude, gemini
+  apiKey: getEnvVar('LLM_API_KEY', null, 'string'),
+  model: getEnvVar('LLM_MODEL', null, 'string'),
+  systemPrompt: getEnvVar('LLM_SYSTEM_PROMPT', 'You are a helpful WhatsApp assistant. Be concise and friendly.', 'string'),
+  maxTokens: getEnvVar('LLM_MAX_TOKENS', 500, 'number'),
+  temperature: getEnvVar('LLM_TEMPERATURE', 0.7, 'number'),
+  // Auto-response settings
+  triggerMode: getEnvVar('LLM_TRIGGER_MODE', 'all', 'string'), // all, keyword, prefix
+  triggerKeywords: getEnvVar('LLM_TRIGGER_KEYWORDS', '', 'string'), // comma-separated
+  triggerPrefix: getEnvVar('LLM_TRIGGER_PREFIX', '!ai ', 'string'),
+  excludeGroups: getEnvVar('LLM_EXCLUDE_GROUPS', true, 'boolean'),
+  excludeChannels: getEnvVar('LLM_EXCLUDE_CHANNELS', true, 'boolean'),
+  rateLimit: getEnvVar('LLM_RATE_LIMIT', 10, 'number'), // per minute per contact
+  historyLimit: getEnvVar('LLM_HISTORY_LIMIT', 10, 'number'), // messages to include
+};
