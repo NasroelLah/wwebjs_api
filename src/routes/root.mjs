@@ -34,24 +34,57 @@ export async function rootRoute(fastify) {
     async (request, reply) => {
       return reply.send({
         name: "NAS WhatsApp API",
-        version: "1.11.1",
-        description: "Enterprise-grade REST API service for WhatsApp Web integration",
+        version: "1.13.0",
+        description: "REST API for WhatsApp Web integration",
         environment: appConfig.environment,
         endpoints: {
-          message: "POST /message - Send single message",
-          batch: "POST /messages/batch - Send multiple messages",
+          messages: [
+            "POST /message - Send message",
+            "POST /messages/batch - Batch send",
+            "GET /messages/:id - Get message",
+            "POST /messages/:id/reply - Reply",
+            "POST /messages/:id/react - React",
+            "POST /messages/:id/forward - Forward",
+            "PUT /messages/:id - Edit",
+            "DELETE /messages/:id - Delete"
+          ],
+          contacts: [
+            "GET /contacts - List contacts",
+            "GET /contacts/:id - Get contact",
+            "GET /contacts/:id/picture - Profile pic",
+            "POST /contacts/:id/block - Block",
+            "POST /contacts/:id/unblock - Unblock"
+          ],
+          chats: [
+            "GET /chats - List chats",
+            "GET /chats/:id - Get chat",
+            "GET /chats/:id/messages - Get messages",
+            "POST /chats/:id/archive - Archive",
+            "POST /chats/:id/pin - Pin",
+            "POST /chats/:id/mute - Mute",
+            "DELETE /chats/:id - Delete"
+          ],
+          groups: [
+            "POST /groups - Create group",
+            "GET /groups/:id - Get info",
+            "PUT /groups/:id/subject - Update name",
+            "GET /groups/:id/invite-code - Get invite",
+            "POST /groups/:id/participants/add - Add members",
+            "POST /groups/:id/participants/remove - Remove",
+            "POST /groups/:id/leave - Leave"
+          ],
           device: [
-            "GET /device-status - Get device status",
-            "GET /device-connect - Connect device (get QR)",
-            "DELETE /device-remove - Remove device"
+            "GET /device-status - Status",
+            "GET /device-connect - Connect (QR)",
+            "DELETE /device-remove - Remove"
           ],
           health: [
-            "GET /health - Full health check",
-            "GET /health/live - Liveness probe",
-            "GET /health/ready - Readiness probe"
+            "GET /health - Health check",
+            "GET /health/live - Liveness",
+            "GET /health/ready - Readiness"
           ]
         },
-        authentication: "Bearer token required for message and device endpoints",
+        authentication: "Bearer token required",
         documentation: "https://github.com/NasroelLah/wwebjs_api/wiki"
       });
     }
@@ -78,7 +111,7 @@ export async function rootRoute(fastify) {
     },
     async (request, reply) => {
       return reply.send({
-        version: "1.11.1",
+        version: "1.13.0",
         node_version: process.version,
         environment: appConfig.environment
       });
