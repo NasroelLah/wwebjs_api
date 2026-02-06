@@ -87,11 +87,9 @@ export const queueConfig = {
 
 // Database Configuration
 export const dbConfig = {
-  mongodb: {
-    uri: getEnvVar('MONGODB_URI', null, 'string'),
-    user: getEnvVar('MONGODB_USER', '', 'string'),
-    password: getEnvVar('MONGODB_PASSWORD', '', 'string'),
-    database: getEnvVar('MONGODB_DB', 'whatsapp_api', 'string'),
+  sqlite: {
+    path: getEnvVar('SQLITE_PATH', null, 'string'), // null = default to ./data/whatsapp_api.db
+    verbose: getEnvVar('SQLITE_VERBOSE', false, 'boolean'),
   },
 };
 
