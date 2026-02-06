@@ -16,8 +16,8 @@ const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"),
  * @param {import('fastify').FastifyInstance} fastify - Fastify instance
  */
 export async function rootRoute(fastify) {
-  // Root endpoint - no auth required
-  fastify.get("/", {
+  // API info endpoint
+  fastify.get("/api", {
     schema: {
       description: "API information endpoint",
       tags: ["Info"],

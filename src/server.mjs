@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import Fastify from "fastify";
+import fastifyStatic from "@fastify/static";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
 import helmet from "@fastify/helmet";
@@ -81,6 +82,13 @@ await fastify.register(swaggerUi, {
     docExpansion: "list",
     deepLinking: true,
   },
+});
+
+// Static files (Device Manager UI)
+await fastify.register(fastifyStatic, {
+  root: join(__dirname, "..", "public"),
+  prefix: "/",
+  decorateReply: false,
 });
 
 // Security headers
