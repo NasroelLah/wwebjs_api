@@ -100,6 +100,13 @@ export const appConfig = {
   isProduction: NODE_ENV === 'production',
 };
 
+// Puppeteer / Browser Configuration
+export const browserConfig = {
+  // Optional: path to system Chromium binary (required on ARM Linux).
+  // e.g. /usr/bin/chromium-browser or /usr/bin/chromium
+  executablePath: getEnvVar('CHROMIUM_PATH', null, 'string'),
+};
+
 // LLM Configuration
 export const llmConfig = {
   enabled: getEnvVar('LLM_ENABLED', false, 'boolean'),

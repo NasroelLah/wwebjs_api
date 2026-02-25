@@ -1,6 +1,6 @@
 import qrcode from "qrcode-terminal";
 import { request } from "undici";
-import { WEBHOOK_URL, webhookConfig, llmConfig } from "./config.mjs";
+import { WEBHOOK_URL, webhookConfig, llmConfig, browserConfig } from "./config.mjs";
 import logger from "./logger.mjs";
 import wwebjs from "whatsapp-web.js";
 
@@ -36,20 +36,25 @@ async function sendWebhook(event, data) {
   }
 }
 
+const puppeteerArgs = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-accelerated-2d-canvas',
+  '--no-first-run',
+  '--no-zygote',
+  '--disable-gpu'
+];
+
+const puppeteerOptions = {
+  headless: true,
+  args: puppeteerArgs,
+  ...(browserConfig.executablePath && { executablePath: browserConfig.executablePath }),
+};
+
 export const client = new Client({
   authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu'
-    ]
-  }
+  puppeteer: puppeteerOptions,
 });
 
 export let lastQr = null;
