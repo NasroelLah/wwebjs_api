@@ -102,9 +102,7 @@ export const appConfig = {
 
 // Puppeteer / Browser Configuration
 export const browserConfig = {
-  // Optional: path to system Chromium binary (required on ARM Linux).
-  // e.g. /usr/bin/chromium-browser or /usr/bin/chromium
-  executablePath: getEnvVar('CHROMIUM_PATH', null, 'string'),
+  executablePath: getEnvVar('CHROMIUM_PATH', '/usr/bin/chromium-browser', 'string'),
 };
 
 // LLM Configuration

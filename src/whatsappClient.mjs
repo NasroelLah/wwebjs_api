@@ -49,7 +49,7 @@ const puppeteerArgs = [
 const puppeteerOptions = {
   headless: true,
   args: puppeteerArgs,
-  ...(browserConfig.executablePath && { executablePath: browserConfig.executablePath }),
+  executablePath: browserConfig.executablePath,
 };
 
 export const client = new Client({
