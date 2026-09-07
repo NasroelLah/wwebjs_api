@@ -3,8 +3,10 @@ import { request } from "undici";
 import { WEBHOOK_URL, webhookConfig, llmConfig, browserConfig } from "./config.mjs";
 import logger from "./logger.mjs";
 import wwebjs from "whatsapp-web.js";
+import { lidMigrationPatch } from "./helpers/lidPatch.mjs";
 
 const { Client, LocalAuth } = wwebjs;
+
 
 // LLM imports (lazy loaded)
 let llmHelper = null;
@@ -55,6 +57,9 @@ const puppeteerOptions = {
 export const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: puppeteerOptions,
+  // Patch LID-migration resolution failures on the WhatsApp Web page
+  // (upstream issue wwebjs/whatsapp-web.js#3834, "No LID for user")
+  evalOnNewDoc: lidMigrationPatch,
 });
 
 export let lastQr = null;

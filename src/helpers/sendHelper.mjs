@@ -2,6 +2,7 @@ import { client, isClientReady } from "../whatsappClient.mjs";
 import logger from "../logger.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
 import wwebjs from "whatsapp-web.js";
+import { isLidResolutionError } from "./lidPatch.mjs";
 
 const { MessageMedia } = wwebjs;
 
@@ -43,23 +44,30 @@ export async function sendMessageWithRetry(chatId, content, options = {}) {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Message send timeout")), 30000)
       );
-      
+
       const sendPromise = client.sendMessage(chatId, content, options);
       const result = await Promise.race([sendPromise, timeoutPromise]);
       
       logger.info({ chatId }, "Message sent successfully");
       return result;
     } catch (error) {
+      // LID-resolution failures are deterministic (no LID mapping for the
+      // user yet) — retrying is pointless. Fail fast with a clear error.
+      if (isLidResolutionError(error)) {
+        logger.error(
+          { chatId, error: error.message },
+          "LID resolution failed for recipient; not retrying"
+        );
+        throw new AppError(
+          ErrorTypes.VALIDATION_ERROR,
+          HttpStatusCodes.BAD_REQUEST,
+          "Cannot resolve WhatsApp LID for this recipient. Open a chat with this number in WhatsApp Web once, then retry.",
+          true
+        );
+      }
+
       attempt++;
       const isLastAttempt = attempt >= maxRetries;
-      
-      logger.warn({ 
-        attempt, 
-        maxRetries, 
-        chatId, 
-        error: error.message,
-        isLastAttempt 
-      }, `Send attempt failed`);
       
       if (isLastAttempt) {
         // Classify the error type
