@@ -1,4 +1,4 @@
-import { dbManager } from "../helpers/dbHelper.mjs";
+import { redisManager } from "../helpers/redisHelper.mjs";
 import { isClientReady } from "../whatsappClient.mjs";
 import logger from "../logger.mjs";
 import { appConfig } from "../config.mjs";
@@ -36,7 +36,7 @@ export async function healthRoute(fastify) {
       
       try {
         // Check database connection
-        const dbHealthy = await dbManager.healthCheck();
+        const dbHealthy = await redisManager.healthCheck();
         
         // Check WhatsApp client status
         const whatsappHealthy = isClientReady();
@@ -119,7 +119,7 @@ export async function healthRoute(fastify) {
     async (request, reply) => {
       try {
         // Check critical dependencies
-        const dbHealthy = await dbManager.healthCheck();
+        const dbHealthy = await redisManager.healthCheck();
         
         if (!dbHealthy) {
           return reply.status(503).send({

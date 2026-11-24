@@ -22,6 +22,7 @@ function sanitizeObject(obj) {
 }
 
 export default function sanitizeInput(request, reply, done) {
+  if (request.routeOptions.config?.rawWorkflow) return done();
   if (request.body && typeof request.body === "object") {
     request.body = sanitizeObject(request.body);
   }

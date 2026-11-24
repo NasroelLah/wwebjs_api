@@ -1,6 +1,6 @@
 import qrcode from "qrcode-terminal";
 import { request } from "undici";
-import { WEBHOOK_URL, webhookConfig, llmConfig, browserConfig } from "./config.mjs";
+import { WEBHOOK_URL, WEBHOOK_TIMEOUT_MS, webhookConfig, llmConfig, browserConfig } from "./config.mjs";
 import logger from "./logger.mjs";
 import wwebjs from "whatsapp-web.js";
 import { lidMigrationPatch } from "./helpers/lidPatch.mjs";
@@ -27,6 +27,7 @@ async function sendWebhook(event, data) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
     });
     // Discard the body: undici keeps the socket busy until it is consumed.
     await response.body.dump();
