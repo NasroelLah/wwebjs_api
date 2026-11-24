@@ -8,14 +8,12 @@ const queueManagementRoutes = async (fastify) => {
   await fastify.register(import('@fastify/rate-limit'), {
     max: 20, // 20 requests per minute
     timeWindow: '1 minute',
-    errorResponseBuilder: () => ({
-      status: "error",
-      error: {
-        type: "RATE_LIMIT_ERROR",
-        message: "Too many queue management requests",
-        details: "Rate limit: 20 requests per minute"
-      }
-    })
+    errorResponseBuilder: () => new AppError(
+      "RATE_LIMIT_ERROR",
+      429,
+      "Too many queue management requests. Rate limit: 20 requests per minute",
+      true
+    )
   });
 
   // Get queue metrics

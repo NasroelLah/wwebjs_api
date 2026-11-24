@@ -13,14 +13,12 @@ export async function batchMessageRoute(fastify) {
   await fastify.register(import('@fastify/rate-limit'), {
     max: 5, // 5 requests per minute for batch operations
     timeWindow: '1 minute',
-    errorResponseBuilder: () => ({
-      status: "error",
-      error: {
-        type: "RATE_LIMIT_ERROR",
-        message: "Too many batch requests. Please wait before sending another batch.",
-        details: "Rate limit: 5 requests per minute"
-      }
-    })
+    errorResponseBuilder: () => new AppError(
+      "RATE_LIMIT_ERROR",
+      429,
+      "Too many batch requests. Please wait before sending another batch. Rate limit: 5 requests per minute",
+      true
+    )
   });
 
   // Apply auth to all routes in this plugin

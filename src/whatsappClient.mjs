@@ -28,6 +28,8 @@ async function sendWebhook(event, data) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    // Discard the body: undici keeps the socket busy until it is consumed.
+    await response.body.dump();
     if (response.statusCode >= 200 && response.statusCode < 300) {
       logger.debug({ event }, "Webhook sent");
     } else {

@@ -1,7 +1,5 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import { AppError, ErrorTypes, HttpStatusCodes } from "./errors/AppError.mjs";
-
-dotenv.config();
 
 /**
  * Validate and parse environment variable
@@ -58,6 +56,8 @@ export const RATE_LIMIT_EXPIRE = getEnvVar('RATE_LIMIT_EXPIRE', 60, 'number');
 
 // Security
 export const ALLOWED_ORIGINS = getEnvVar('ALLOWED_ORIGINS', 'http://localhost:3000', 'string');
+export const TRUSTED_PROXIES = getEnvVar('TRUSTED_PROXIES', '', 'string')
+  .split(',').map((proxy) => proxy.trim()).filter(Boolean);
 
 // Webhook Configuration
 export const webhookConfig = {

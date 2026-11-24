@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import Fastify from "fastify";
+import Fastify, { LogController } from "fastify";
 import fastifyStatic from "@fastify/static";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
@@ -15,6 +15,7 @@ import {
   ENABLE_LOGGER,
   RATE_LIMIT,
   RATE_LIMIT_EXPIRE,
+  TRUSTED_PROXIES,
   appConfig,
 } from "./config.mjs";
 import { messageRoute } from "./routes/message.mjs";
@@ -38,8 +39,8 @@ const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-
 const fastify = Fastify({
   logger: ENABLE_LOGGER,
   bodyLimit: 10485760, // 10MB limit
-  trustProxy: true,
-  disableRequestLogging: true, // We handle logging manually
+  trustProxy: TRUSTED_PROXIES.length ? TRUSTED_PROXIES : false,
+  logController: new LogController({ disableRequestLogging: true }), // We handle logging manually
 });
 
 // Swagger documentation
@@ -121,7 +122,7 @@ await fastify.register(cors, {
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error("Not allowed by CORS"), false);
+    return callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -169,7 +170,10 @@ fastify.addHook("onSend", async (_request, _reply, payload) => {
     return payload;
   }
 
-  if (data && (data.name || data.version || data.status || data.timestamp || data.openapi)) {
+  if (data === null) {
+    return payload;
+  }
+  if (data.name || data.version || data.status || data.timestamp || data.openapi) {
     return payload;
   }
 
@@ -195,6 +199,11 @@ fastify.register(autoResponseRoute);
 
 // Global error handler
 fastify.setErrorHandler(async (error, _request, reply) => {
+  // Client errors (malformed body, payload too large, rate limit) are not programmer
+  // errors: respond directly, since ErrorHandler exits the process for untrusted errors.
+  if (!errorHandler.isTrustedError(error) && error.statusCode >= 400 && error.statusCode < 500) {
+    return reply.status(error.statusCode).send({ status: "error", message: error.message });
+  }
   await errorHandler.handleError(error, reply);
 });
 

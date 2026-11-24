@@ -63,11 +63,11 @@ export function getLidPatchSource() {
     guarded(
       { module: 'WAWebLid1X1MigrationGating', function: 'Lid1X1MigrationUtils.isLidMigrated' },
       (module, func, ...args) => {
-        try { return func(...args); } catch { return false; }
+        try { return func.apply(module, args); } catch { return false; }
       }
     );
     const lidFallback = (module, func, wid) => {
-      try { return func(wid); } catch { return wid; }
+      try { return func.call(module, wid); } catch { return wid; }
     };
     guarded({ module: 'WAWebLidMigrationUtils', function: 'toUserLid' }, lidFallback);
     guarded({ module: 'WAWebLidMigrationUtils', function: 'toUserLidOrThrow' }, lidFallback);

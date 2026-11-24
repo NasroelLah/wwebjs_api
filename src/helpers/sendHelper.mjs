@@ -41,21 +41,25 @@ export async function sendMessageWithRetry(chatId, content, options = {}) {
       logger.debug({ attempt: attempt + 1, chatId }, "Attempting to send message");
       
       // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Message send timeout")), 30000)
-      );
+      let timer;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Message send timeout")), 30000);
+      });
 
-      const sendPromise = client.sendMessage(chatId, content, options);
-      const result = await Promise.race([sendPromise, timeoutPromise]);
+      const sendPromise = Promise.resolve().then(() => client.sendMessage(chatId, content, options));
+      const result = await Promise.race([sendPromise, timeoutPromise]).finally(() =>
+        clearTimeout(timer)
+      );
       
       logger.info({ chatId }, "Message sent successfully");
       return result;
     } catch (error) {
+      const message = String(error?.message ?? error ?? "");
       // LID-resolution failures are deterministic (no LID mapping for the
       // user yet) — retrying is pointless. Fail fast with a clear error.
       if (isLidResolutionError(error)) {
         logger.error(
-          { chatId, error: error.message },
+          { chatId, error: message },
           "LID resolution failed for recipient; not retrying"
         );
         throw new AppError(
@@ -75,15 +79,15 @@ export async function sendMessageWithRetry(chatId, content, options = {}) {
         let statusCode = HttpStatusCodes.INTERNAL_SERVER_ERROR;
         let userMessage = "Failed to send message after multiple attempts";
         
-        if (error.message.includes("serialize")) {
+        if (message.includes("serialize")) {
           errorType = ErrorTypes.WHATSAPP_ERROR;
           statusCode = HttpStatusCodes.SERVICE_UNAVAILABLE;
           userMessage = "WhatsApp service temporarily unavailable. Please try again later.";
-        } else if (error.message.includes("timeout")) {
+        } else if (message.includes("timeout")) {
           errorType = ErrorTypes.NETWORK_ERROR;
           statusCode = HttpStatusCodes.REQUEST_TIMEOUT;
           userMessage = "Message send timeout. Please check your connection and try again.";
-        } else if (error.message.includes("not found") || error.message.includes("invalid")) {
+        } else if (message.includes("not found") || message.includes("invalid")) {
           errorType = ErrorTypes.VALIDATION_ERROR;
           statusCode = HttpStatusCodes.BAD_REQUEST;
           userMessage = "Invalid phone number or chat ID.";

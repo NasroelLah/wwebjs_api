@@ -1,0 +1,4 @@
+allowBuilds:
+  better-sqlite3: false
+  msgpackr-extract: false
+  puppeteer: false

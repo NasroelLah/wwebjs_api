@@ -59,11 +59,6 @@ describe("lidMigrationPatch source", () => {
     assert.match(source, /'WAWebLidMigrationUtils', function: 'toUserLidOrThrow'/);
   });
 
-  test("falls back to the original wid instead of throwing", () => {
-    const source = getLidPatchSource();
-    assert.match(source, /try \{ return func\(wid\); \} catch \{ return wid; \}/);
-  });
-
   test("is idempotent via an id flag", () => {
     assert.match(getLidPatchSource(), /__wwebjsLidPatchApplied/);
   });
@@ -74,34 +69,36 @@ describe("lidMigrationPatch runtime behavior", () => {
   // converters and falls back to the original wid.
   function createFakeWindow() {
     const wid = { server: "c.us", user: "628123" };
-    const calls = { isLidMigrated: 0, toUserLid: 0, toUserLidOrThrow: 0 };
+    const calls = { isLidMigrated: 0, toUserLid: 0, toUserLidOrThrow: 0, thisOf: {} };
     const injectionTargets = [];
+    const lidGatingUtils = {
+      isLidMigrated() {
+        calls.isLidMigrated++;
+        calls.thisOf.isLidMigrated = this;
+        throw new Error("lid-migrated client does not have an accountLid!");
+      },
+    };
+    const lidUtils = {
+      toUserLid() {
+        calls.toUserLid++;
+        calls.thisOf.toUserLid = this;
+        throw new Error("No LID for user");
+      },
+      toUserLidOrThrow() {
+        calls.toUserLidOrThrow++;
+        calls.thisOf.toUserLidOrThrow = this;
+        throw new Error("No LID for user");
+      },
+    };
+    const modules = {
+      WAWebLid1X1MigrationGating: { Lid1X1MigrationUtils: lidGatingUtils },
+      WAWebLidMigrationUtils: lidUtils,
+      WAWebWidFactory: { createWid: () => wid },
+    };
     const window = {
       require(module) {
-        if (module === "WAWebLid1X1MigrationGating") {
-          return {
-            Lid1X1MigrationUtils: {
-              isLidMigrated() {
-                calls.isLidMigrated++;
-                throw new Error("lid-migrated client does not have an accountLid!");
-              },
-            },
-          };
-        }
-        if (module === "WAWebLidMigrationUtils") {
-          return {
-            toUserLid() {
-              calls.toUserLid++;
-              throw new Error("No LID for user");
-            },
-            toUserLidOrThrow() {
-              calls.toUserLidOrThrow++;
-              throw new Error("No LID for user");
-            },
-          };
-        }
-        if (module === "WAWebWidFactory") return { createWid: () => wid };
-        throw new Error("unknown module " + module);
+        if (!(module in modules)) throw new Error("unknown module " + module);
+        return modules[module];
       },
       WWebJS: {
         injectToFunction(target, callback) {
@@ -109,11 +106,12 @@ describe("lidMigrationPatch runtime behavior", () => {
         },
       },
     };
-    return { window, calls, injectionTargets, wid };
+    const owners = { isLidMigrated: lidGatingUtils, toUserLid: lidUtils, toUserLidOrThrow: lidUtils };
+    return { window, calls, injectionTargets, wid, owners };
   }
 
   test("wraps LID converters and falls back to wid on throw", async () => {
-    const { window, calls, injectionTargets, wid } = createFakeWindow();
+    const { window, calls, injectionTargets, wid, owners } = createFakeWindow();
     globalThis.window = window;
     try {
       const source = getLidPatchSource();
@@ -121,12 +119,12 @@ describe("lidMigrationPatch runtime behavior", () => {
       await new Function("window", `return (${source})()`)(window);
 
       for (const { target, callback } of injectionTargets) {
-        // Simulate the injected wrapper: callback(module, original, ...args)
-        const module = window.require(target.module);
-        const original = target.function
-          .split(".")
-          .reduce((m, k) => m[k], window.require(target.module));
-        const result = callback(module, original, wid);
+        // Resolve the owning object the same way injectToFunction does
+        const path = target.function.split(".");
+        const funcName = path.pop();
+        const owner = path.reduce((m, k) => m[k], window.require(target.module));
+        const original = owner[funcName];
+        const result = callback(owner, original, wid);
         if (target.function.endsWith("isLidMigrated")) {
           assert.equal(result, false, "isLidMigrated must fall back to false on throw");
         } else {
@@ -135,6 +133,11 @@ describe("lidMigrationPatch runtime behavior", () => {
       }
       assert.equal(calls.toUserLidOrThrow, 1);
       assert.equal(calls.isLidMigrated, 1);
+      // Regression: originals must run with their owning object as `this`,
+      // matching whatsapp-web.js injectToFunction (origFunction.apply(module, args)).
+      assert.equal(calls.thisOf.isLidMigrated, owners.isLidMigrated);
+      assert.equal(calls.thisOf.toUserLid, owners.toUserLid);
+      assert.equal(calls.thisOf.toUserLidOrThrow, owners.toUserLidOrThrow);
     } finally {
       delete globalThis.window;
     }
