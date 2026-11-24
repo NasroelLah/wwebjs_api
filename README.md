@@ -65,9 +65,23 @@ Patch LID menggunakan `evalOnNewDoc` tetapi bergantung pada modul privat WhatsAp
 
 Jika startup gagal dengan `TimeoutError` pada `Client.inject`, lihat log `WhatsApp initialization timeout diagnostic`: `page` menunjukkan apakah halaman berada pada login, `webVersion` adalah versi yang termuat, dan `hasSocketModel`/`socketState` menunjukkan kesiapan koneksi internal. Log ini tidak memuat QR, URL lengkap, nomor, atau token.
 
-Jika `page` = `login` dan `hasSocketModel` = `false`, gejalanya cocok dengan [issue upstream #201988](https://github.com/wwebjs/whatsapp-web.js/issues/201988); penyebab di server Anda tetap perlu dikonfirmasi. Menaikkan timeout tidak memperbaiki modul yang tidak tersedia. Gunakan rilis upstream yang sudah memperbaiki issue tersebut ketika tersedia.
+Jika `page` = `login` dan `hasSocketModel` = `false`, penyebabnya adalah [issue upstream #201988](https://github.com/wwebjs/whatsapp-web.js/issues/201988): WhatsApp Web terbaru mengarahkan sesi yang belum login ke `/login/`, yang tidak memiliki modul `WAWebSocketModel`, sehingga `Client.inject()` menunggu sampai timeout dan event `qr` tidak pernah dikirim. Menaikkan timeout tidak membantu. Per 2026-11-24 belum ada rilis upstream yang memperbaikinya (`whatsapp-web.js@1.34.8` masih memuat `inject()` yang sama).
 
-Sebagai workaround sementara **hanya jika Anda sudah memiliki file HTML versi kompatibel yang tepercaya**, simpan file sebagai `.wwebjs_cache/<versi>.html`, lalu atur `WWEBJS_WEB_VERSION=<versi>` dan, jika direktori berbeda, `WWEBJS_WEB_CACHE_PATH=<direktori>`. Issue upstream melaporkan `2.3000.1054759074` berhasil pada lingkungannya, tetapi file tersebut tidak disertakan proyek ini dan kompatibilitasnya dapat kedaluwarsa. Cache bersifat strict: aplikasi gagal secara jelas jika file yang dipilih tidak ada; tidak diam-diam memakai versi terbaru. **Jangan gunakan file HTML yang tidak tepercaya:** Chromium akan menjalankannya pada konteks WhatsApp Web.
+Workaround terverifikasi: pin build WhatsApp Web yang lebih lama. Pada 2026-11-24, build `2.3000.1055837054-alpha` menghasilkan event `qr` (build `2.3000.1055857453-alpha` dan yang lebih baru gagal dengan `TimeoutError` yang sama). Unduh dari commit yang dikunci, periksa checksum, lalu atur env:
+
+```bash
+mkdir -p .wwebjs_cache
+curl -fL -o .wwebjs_cache/2.3000.1055837054-alpha.html \
+  https://raw.githubusercontent.com/wppconnect-team/wa-version/e6cec7b43adc11ae36f946421576d517ecdc80e2/html/2.3000.1055837054-alpha.html
+echo "2b7984d1b085b09228ce104d73c6cce41e20cb52453867bb739fe239f1e96ff3  .wwebjs_cache/2.3000.1055837054-alpha.html" | sha256sum -c -
+```
+
+```env
+WWEBJS_WEB_VERSION=2.3000.1055837054-alpha
+# WWEBJS_WEB_CACHE_PATH=./.wwebjs_cache (default)
+```
+
+Ini hanya workaround sementara: WhatsApp dapat menolak build lama kapan saja, dan file ini tidak disertakan proyek. Hapus `WWEBJS_WEB_VERSION` setelah upstream merilis perbaikan. Cache bersifat strict: aplikasi gagal secara jelas jika file yang dipilih tidak ada; tidak diam-diam memakai versi terbaru. **Jangan gunakan file HTML yang tidak tepercaya:** Chromium akan menjalankannya pada konteks WhatsApp Web.
 
 Jika state tetap `OPENING` atau `UNLAUNCHED`, periksa koneksi dan akses WhatsApp Web dari server, proxy/firewall, serta kesesuaian Chromium. Untuk koneksi yang lambat, `WWEBJS_AUTH_TIMEOUT_MS` dapat diubah dari default `30000`, misalnya menjadi `120000`; ini bukan perbaikan untuk issue `/login/` di atas. Jangan menghapus `.wwebjs_auth` atau cache yang ada tanpa backup.
 
