@@ -1,5 +1,5 @@
-/* global process */
 import "dotenv/config";
+import { API_KEY } from "../config.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
 
 export function validateApiKey(request, reply) {
@@ -23,8 +23,8 @@ export function validateApiKey(request, reply) {
     );
   }
 
-  const token = authHeader.split(" ")[1];
-  if (!token || token !== process.env.API_KEY) {
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token || token !== API_KEY) {
     throw new AppError(
       ErrorTypes.AUTHENTICATION_ERROR,
       HttpStatusCodes.UNAUTHORIZED,

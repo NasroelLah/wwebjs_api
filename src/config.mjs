@@ -49,8 +49,10 @@ function getEnvVar(key, defaultValue, type = 'string', required = false) {
 // Server Configuration
 export const NODE_ENV = getEnvVar('NODE_ENV', 'development', 'string');
 export const API_KEY = getEnvVar('API_KEY', 'dev-api-key-123', 'string', NODE_ENV === 'production');
+export const ADMIN_KEY = getEnvVar('ADMIN_KEY', null, 'string', false);
 export const HOST_PORT = getEnvVar('HOST_PORT', 3000, 'number');
 export const WEBHOOK_URL = getEnvVar('WEBHOOK_URL', null, 'string');
+export const WEBHOOK_TIMEOUT_MS = getEnvVar('WEBHOOK_TIMEOUT_MS', 10000, 'number');
 export const ENABLE_LOGGER = getEnvVar('ENABLE_LOGGER', false, 'boolean');
 
 // Rate Limiting
@@ -59,6 +61,11 @@ export const RATE_LIMIT_EXPIRE = getEnvVar('RATE_LIMIT_EXPIRE', 60, 'number');
 
 // Security
 export const ALLOWED_ORIGINS = getEnvVar('ALLOWED_ORIGINS', 'http://localhost:3000', 'string');
+export const ALLOWED_ORIGIN_LIST = ALLOWED_ORIGINS.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+export const ALLOW_CLOUDFLARE_TUNNEL_ORIGINS = getEnvVar('ALLOW_CLOUDFLARE_TUNNEL_ORIGINS', true, 'boolean');
+export const CHROMIUM_EXECUTABLE_PATH = getEnvVar('CHROMIUM_EXECUTABLE_PATH', '/usr/bin/chromium-browser', 'string');
 
 // Webhook Configuration
 export const webhookConfig = {

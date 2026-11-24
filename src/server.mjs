@@ -9,12 +9,16 @@ import {
   HOST_PORT,
   ENABLE_LOGGER,
   RATE_LIMIT,
+  ALLOWED_ORIGIN_LIST,
+  ALLOW_CLOUDFLARE_TUNNEL_ORIGINS,
   RATE_LIMIT_EXPIRE,
 } from "./config.mjs";
 import { messageRoute } from "./routes/message.mjs";
 import { batchMessageRoute } from "./routes/batchMessage.mjs";
 import { healthRoute } from "./routes/health.mjs";
 import { rootRoute } from "./routes/root.mjs";
+import { adminRoute } from "./routes/admin.mjs";
+import queueManagementRoutes from "./routes/queue.mjs";
 
 // Import workflow routes
 import messageWorkflowRoute from "./routes/workflows/message.mjs";
@@ -22,6 +26,7 @@ import batchMessageWorkflowRoute from "./routes/workflows/batchMessage.mjs";
 import cleanupWorkflowRoute from "./routes/workflows/cleanup.mjs";
 import logger from "./logger.mjs";
 import { errorHandler } from "./errors/ErrorHandler.mjs";
+import { validateApiKey } from "./middleware/auth.mjs";
 
 const fastify = Fastify({ 
   logger: ENABLE_LOGGER,
@@ -35,7 +40,7 @@ fastify.register(helmet, {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'sha256-sA1ZbEzEoxoOXxNB0ZHbl/mrnC39IhyUWH1TAjVq+pw='"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],
@@ -51,20 +56,33 @@ fastify.register(helmet, {
   }
 });
 
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  if (ALLOWED_ORIGIN_LIST.includes('*')) return true;
+  if (ALLOWED_ORIGIN_LIST.includes(origin)) return true;
+
+  try {
+    const { hostname } = new URL(origin);
+    if (ALLOW_CLOUDFLARE_TUNNEL_ORIGINS && hostname.endsWith('.trycloudflare.com')) {
+      return true;
+    }
+  } catch (error) {
+    logger.warn({ origin, error: error.message }, 'Invalid CORS origin received');
+    return false;
+  }
+
+  return false;
+}
+
 // CORS configuration
 fastify.register(cors, {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Add your allowed origins here
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
-    
-    if (allowedOrigins.includes(origin)) {
+    if (isAllowedCorsOrigin(origin)) {
       return callback(null, true);
     }
-    
-    return callback(new Error("Not allowed by CORS"), false);
+
+    logger.warn({ origin }, "Blocked CORS origin");
+    return callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -72,37 +90,15 @@ fastify.register(cors, {
 });
 
 fastify.addHook("preValidation", sanitizeInput);
-
-fastify.addHook("onRequest", async (request) => {
-  logger.info(`${request.method} ${request.url}`);
-});
-
-fastify.addHook("onSend", async (request, _reply, payload) => {
-  let data;
-  try {
-    data = JSON.parse(payload);
-  } catch {
-    // If payload is not JSON, return as is
-    return payload;
-  }
-  
-  // If response already has proper structure, don't wrap it
-  if (data && (data.name || data.version || data.status || data.timestamp)) {
-    return payload;
-  }
-  
-  // Only wrap responses that need the standard API format
-  const response = {
-    status: data.status || "success",
-    message: data.message || "",
-    ...(data.data && { data: data.data }),
-  };
-  return JSON.stringify(response);
-});
+fastify.decorate("authenticate", async (request, reply) => validateApiKey(request, reply));
 
 fastify.addHook("onRequest", (request, reply, done) => {
   request.startTime = Date.now();
   done();
+});
+
+fastify.addHook("onRequest", async (request) => {
+  logger.info(`${request.method} ${request.url}`);
 });
 
 fastify.addHook("onResponse", async (request, reply) => {
@@ -124,6 +120,8 @@ fastify.register(rootRoute);
 fastify.register(messageRoute);
 fastify.register(batchMessageRoute);
 fastify.register(healthRoute);
+fastify.register(queueManagementRoutes);
+fastify.register(adminRoute);
 
 // Register workflow routes
 fastify.register(async function (fastify) {
@@ -147,16 +145,9 @@ export function startServer() {
   });
 }
 
-// Global uncaught exception handlers
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ reason, promise }, 'Unhandled Promise Rejection');
-  throw reason; // Let uncaughtException handle it
-});
+export async function closeServer() {
+  await fastify.close();
+}
 
-process.on('uncaughtException', async (error) => {
-  logger.error({ error }, 'Uncaught Exception');
-  await errorHandler.handleError(error);
-  if (!errorHandler.isTrustedError(error)) {
-    process.exit(1);
-  }
-});
+export { fastify };
+

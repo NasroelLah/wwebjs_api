@@ -1,4 +1,3 @@
-/* global process */
 import { serve } from "@upstash/workflow";
 import { sendMessageWithRetry } from "../helpers/sendHelper.mjs";
 import { updateMessageStatus } from "../helpers/redisHelper.mjs";
@@ -147,34 +146,25 @@ export const cleanupWorkflow = serve(async (context) => {
 
   const result = await context.run("cleanup-messages", async () => {
     try {
-      const { Redis } = await import("@upstash/redis");
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      });
+      const { redisManager, deleteMessage } = await import("../helpers/redisHelper.mjs");
+      const redis = redisManager.getClient();
 
       const cutoffTime = Date.now() - (olderThanDays * 24 * 60 * 60 * 1000);
-      let cleanedCount = 0;
+      const messageIds = await redis.zrangebyscore(
+        'scheduled:completed-by-time',
+        '-inf',
+        cutoffTime.toString()
+      );
 
-      // Get completed and failed messages older than cutoff
-      const completedMessages = await redis.smembers('scheduled:status:sent');
-      const failedMessages = await redis.smembers('scheduled:status:failed');
-      const allMessages = [...completedMessages, ...failedMessages];
+      const limitedMessageIds = messageIds.slice(0, 500);
+      await Promise.all(limitedMessageIds.map((messageId) => deleteMessage(messageId)));
 
-      for (const messageId of allMessages) {
-        const messageData = await redis.hget(`scheduled:${messageId}`, 'updatedAt');
-        if (messageData && parseInt(messageData) < cutoffTime) {
-          // Delete the message
-          await redis.del(`scheduled:${messageId}`);
-          await redis.srem('scheduled:status:sent', messageId);
-          await redis.srem('scheduled:status:failed', messageId);
-          await redis.zrem('scheduled:by-time', messageId);
-          cleanedCount++;
-        }
-      }
-
-      logger.info(`Cleanup workflow completed. Cleaned ${cleanedCount} messages`);
-      return { cleanedCount, cutoffTime: new Date(cutoffTime).toISOString() };
+      logger.info(`Cleanup workflow completed. Cleaned ${limitedMessageIds.length} messages`);
+      return {
+        cleanedCount: limitedMessageIds.length,
+        remainingCount: Math.max(messageIds.length - limitedMessageIds.length, 0),
+        cutoffTime: new Date(cutoffTime).toISOString()
+      };
     } catch (error) {
       logger.error({ error }, `Cleanup workflow failed`);
       throw error;

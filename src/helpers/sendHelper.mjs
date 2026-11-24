@@ -38,13 +38,7 @@ export async function sendMessageWithRetry(chatId, content, options = {}) {
     try {
       logger.debug({ attempt: attempt + 1, chatId }, "Attempting to send message");
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Message send timeout")), 30000)
-      );
-      
-      const sendPromise = client.sendMessage(chatId, content, options);
-      const result = await Promise.race([sendPromise, timeoutPromise]);
+      const result = await client.sendMessage(chatId, content, options);
       
       logger.info({ chatId }, "Message sent successfully");
       return result;

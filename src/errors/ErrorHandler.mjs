@@ -1,4 +1,4 @@
-/* global process */
+import { NODE_ENV } from '../config.mjs';
 import logger from '../logger.mjs';
 import { AppError } from './AppError.mjs';
 
@@ -20,7 +20,7 @@ class ErrorHandler {
     }
     
     if (!this.isTrustedError(error)) {
-      process.exit(1);
+      logger.fatal?.({ error }, 'Untrusted error requires shutdown');
     }
   }
 
@@ -60,7 +60,7 @@ class ErrorHandler {
     const errorResponse = {
       status: 'error',
       message,
-      ...(process.env.NODE_ENV === 'development' && {
+      ...(NODE_ENV === 'development' && {
         stack: error.stack,
         details: error
       })

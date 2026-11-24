@@ -1,7 +1,7 @@
 import logger from "../logger.mjs";
 import { queueMonitor } from "../helpers/queueMonitor.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
-import process from "process";
+import { ADMIN_KEY } from "../config.mjs";
 
 const queueManagementRoutes = async (fastify) => {
   // Rate limiting for queue management operations
@@ -154,7 +154,7 @@ const queueManagementRoutes = async (fastify) => {
   }, async (request, reply) => {
     try {
       // Check if user has admin privileges (you might want to implement proper role checking)
-      if (!request.headers['x-admin-key'] || request.headers['x-admin-key'] !== process.env.ADMIN_KEY) {
+      if (!ADMIN_KEY || request.headers['x-admin-key'] !== ADMIN_KEY) {
         throw new AppError(
           ErrorTypes.AUTHORIZATION_ERROR,
           HttpStatusCodes.FORBIDDEN,

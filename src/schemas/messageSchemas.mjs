@@ -128,7 +128,7 @@ export const batchMessageSchema = {
       messages: {
         type: 'array',
         minItems: 1,
-        maxItems: 50, // Limit batch size
+        maxItems: 50,
         items: messageSchema.body
       }
     },
@@ -137,22 +137,67 @@ export const batchMessageSchema = {
   }
 };
 
-// Response schemas for documentation
+// Response schemas for serialization
+const baseSuccessProperties = {
+  status: {
+    type: 'string',
+    enum: ['success']
+  },
+  message: {
+    type: 'string'
+  }
+};
+
+const messageResultSchema = {
+  type: 'object',
+  properties: {
+    chatId: { type: 'string' },
+    status: { type: 'string' },
+    message: { type: 'string' },
+    errorType: { type: 'string' },
+    messageId: { type: 'string' }
+  },
+  additionalProperties: true
+};
+
 export const successResponseSchema = {
   type: 'object',
   properties: {
-    status: {
-      type: 'string',
-      enum: ['success']
-    },
-    message: {
-      type: 'string'
-    },
+    ...baseSuccessProperties,
     data: {
-      type: 'object'
+      type: ['object', 'array', 'null'],
+      additionalProperties: true,
+      items: messageResultSchema
+    },
+    meta: {
+      type: 'object',
+      additionalProperties: true
     }
   },
-  required: ['status', 'message']
+  required: ['status', 'message'],
+  additionalProperties: false
+};
+
+export const acceptedBatchResponseSchema = {
+  type: 'object',
+  properties: {
+    ...baseSuccessProperties,
+    data: {
+      type: 'object',
+      properties: {
+        batchId: { type: 'string' },
+        messageIds: {
+          type: 'array',
+          items: { type: 'string' }
+        },
+        workflowRunId: { type: 'string' },
+        messageCount: { type: 'number' }
+      },
+      additionalProperties: true
+    }
+  },
+  required: ['status', 'message', 'data'],
+  additionalProperties: false
 };
 
 export const errorResponseSchema = {
@@ -166,8 +211,11 @@ export const errorResponseSchema = {
       type: 'string'
     },
     details: {
-      type: 'object'
-    }
+      type: ['object', 'string', 'array', 'null'],
+      additionalProperties: true
+    },
+    stack: { type: 'string' }
   },
-  required: ['status', 'message']
+  required: ['status', 'message'],
+  additionalProperties: true
 };

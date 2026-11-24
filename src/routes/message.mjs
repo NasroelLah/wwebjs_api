@@ -79,14 +79,18 @@ export async function messageRoute(fastify) {
         
         logger.info(`Preparing to send ${type} message to ${chatId}`);
 
-        if (
-          schedule &&
-          scheduleDispatch(chatId, messageContent, sendOptions, schedule)
-        ) {
+        const scheduledMessageId = schedule
+          ? await scheduleDispatch(chatId, messageContent, sendOptions, schedule)
+          : null;
+
+        if (scheduledMessageId) {
           logger.info(`Message scheduled for ${schedule}`);
           return reply.code(200).send({
             status: "success",
             message: "Message scheduled successfully.",
+            data: {
+              messageId: scheduledMessageId
+            }
           });
         }
         

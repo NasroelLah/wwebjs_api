@@ -1,5 +1,5 @@
 import logger from "../logger.mjs";
-import { client, lastQr, getClientState, isClientReady } from "../whatsappClient.mjs";
+import { client, lastQr, lastQrGeneratedAt, getClientState, isClientReady, restartWhatsApp } from "../whatsappClient.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
 
 export async function getDeviceStatus(request, reply) {
@@ -24,7 +24,7 @@ export async function getDeviceStatus(request, reply) {
         isReady,
         isConnected: client.info && client.info.wid ? true : false,
         device: deviceInfo,
-        lastQrGenerated: lastQr ? new Date().toISOString() : null
+        lastQrGenerated: lastQrGeneratedAt
       }
     });
   } catch (error) {
@@ -94,7 +94,7 @@ export async function connectDevice(request, reply) {
       });
       
       try {
-        client.initialize();
+        await restartWhatsApp();
         const qrCode = await qrPromise;
         
         return reply.code(200).send({
@@ -163,7 +163,7 @@ export async function removeDevice(request, reply) {
     
     try {
       await client.logout();
-      logger.info("Device disconnected successfully");
+      await restartWhatsApp({ initialize: false });
       
       return reply.code(200).send({
         status: "success",

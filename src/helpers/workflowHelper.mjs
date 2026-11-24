@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Client } from "@upstash/workflow";
 import logger from "../logger.mjs";
 import { saveScheduledMessage } from "../helpers/redisHelper.mjs";
@@ -65,7 +66,7 @@ class WorkflowManager {
    */
   async scheduleBatchMessages(messages, delayBetween = 1000) {
     try {
-      const batchId = `batch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const batchId = `batch-${randomUUID()}`;
       const messagesWithIds = [];
 
       // Save each message to Redis and collect IDs
