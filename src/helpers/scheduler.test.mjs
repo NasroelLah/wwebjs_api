@@ -1,19 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import Fastify from "fastify";
 import wwebjs from "whatsapp-web.js";
 
 process.env.NODE_ENV = "test";
 process.env.SQLITE_PATH = ":memory:";
 process.env.API_KEY = "schedule-test-key";
-process.env.QUEUE_CONNECTION = "cron";
 process.env.APP_TIMEZONE = "UTC";
 process.env.MESSAGE_DELAY = "0";
 const { client } = await import("../whatsappClient.mjs");
 const { dbManager, saveScheduledMessage, getScheduledMessages, updateMessageStatus } = await import("./dbHelper.mjs");
-const { scheduleDispatch } = await import("./scheduleHelper.mjs");
 const { processScheduledMessages } = await import("../jobs/processScheduledMessages.mjs");
-const { messageRoute } = await import("../routes/message.mjs");
 const { Location, MessageMedia } = wwebjs;
 
 test("scheduled messages wait for readiness and preserve text, media and location", async (t) => {
@@ -42,10 +38,9 @@ test("scheduled messages wait for readiness and preserve text, media and locatio
   assert.equal((await getScheduledMessages()).length, 0);
 });
 
-test("failed storage does not report successful scheduling", async (t) => {
+test("legacy storage failure is reported", async (t) => {
   t.mock.method(dbManager, "connect", async () => { throw new Error("disk unavailable"); });
-  const future = new Date(Date.now() + 3600000).toISOString().replace("T", " ").slice(0, 19);
-  await assert.rejects(scheduleDispatch("111@c.us", "hello", {}, future), /Failed to save scheduled message/);
+  await assert.rejects(saveScheduledMessage("111@c.us", "hello", {}, 0), /Failed to save scheduled message/);
 });
 
 test("uncertain send is not selected for another automatic attempt", async (t) => {
@@ -65,31 +60,6 @@ test("uncertain send is not selected for another automatic attempt", async (t) =
 });
 
 
-test("message endpoint schedules and later sends an upstream Location", async (t) => {
-  const app = Fastify();
-  await app.register(messageRoute);
-  t.after(() => app.close());
-  const send = t.mock.method(client, "sendMessage", async () => ({ id: "location" }));
-  const schedule = new Date(Date.now() + 3600000).toISOString().replace("T", " ").slice(0, 19);
-  const response = await app.inject({
-    method: "POST",
-    url: "/message",
-    headers: { authorization: "Bearer schedule-test-key" },
-    payload: {
-      recipient_type: "individual", to: "628123456789", type: "location",
-      location: { latitude: -6.2, longitude: 106.8, address: "Jakarta" }, schedule,
-    },
-  });
-  assert.equal(response.statusCode, 200);
-  assert.equal(response.json().message, "Message scheduled successfully");
-  const row = dbManager.getDatabase().prepare("SELECT id FROM scheduled_messages WHERE status = 'scheduled'").get();
-  assert.ok(row);
-  dbManager.getDatabase().prepare("UPDATE scheduled_messages SET scheduled_time = ? WHERE id = ?").run(new Date(0).toISOString(), row.id);
-  await processScheduledMessages();
-  assert.equal(send.mock.calls.length, 1);
-  assert.ok(send.mock.calls[0].arguments[1] instanceof Location);
-  assert.equal(send.mock.calls[0].arguments[1].address, "Jakarta");
-});
 
 test("legacy scheduled media and locations are restored from SQLite", async (t) => {
   const send = t.mock.method(client, "sendMessage", async () => ({ id: "sent" }));

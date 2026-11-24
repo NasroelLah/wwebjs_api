@@ -67,12 +67,13 @@ export async function messageRoute(fastify) {
 
       logger.debug({ type, chatId }, "Preparing message");
 
-      if (schedule && await scheduleDispatch(chatId, messageContent, sendOptions, schedule)) {
+      if (schedule) {
+        const messageId = await scheduleDispatch(chatId, messageContent, sendOptions, schedule);
+        if (!messageId) {
+          throw new AppError(ErrorTypes.VALIDATION_ERROR, HttpStatusCodes.BAD_REQUEST, "Scheduled time must be in the future", true);
+        }
         logger.info({ chatId, schedule }, "Message scheduled");
-        return reply.send({
-          status: "success",
-          message: "Message scheduled successfully",
-        });
+        return reply.send({ status: "success", message: "Message scheduled successfully", data: { messageId } });
       }
 
       await sendMessageWithRetry(chatId, messageContent, sendOptions);

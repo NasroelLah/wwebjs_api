@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import Fastify, { LogController } from "fastify";
+import { Receiver } from "@upstash/qstash";
 import fastifyStatic from "@fastify/static";
 import rateLimit from "@fastify/rate-limit";
 import compress from "@fastify/compress";
@@ -15,8 +16,8 @@ import {
   ENABLE_LOGGER,
   RATE_LIMIT,
   RATE_LIMIT_EXPIRE,
-  queueConfig,
   TRUSTED_PROXIES,
+  workflowConfig,
   appConfig,
 } from "./config.mjs";
 import { messageRoute } from "./routes/message.mjs";
@@ -29,8 +30,12 @@ import { groupRoute } from "./routes/group.mjs";
 import { messageActionsRoute } from "./routes/messageActions.mjs";
 import { autoResponseRoute } from "./routes/autoResponse.mjs";
 import { deviceRoute } from "./routes/device.mjs";
-import logger from "./logger.mjs";
+import { adminRoute } from "./routes/admin.mjs";
+import queueManagementRoutes from "./routes/queue.mjs";
+import { validateApiKey } from "./middleware/auth.mjs";
+import { messageWorkflow, batchMessageWorkflow, cleanupWorkflow } from "./workflows/messageWorkflows.mjs";
 import { processScheduledMessages } from "./jobs/processScheduledMessages.mjs";
+import logger from "./logger.mjs";
 import { errorHandler } from "./errors/ErrorHandler.mjs";
 
 // Get package version
@@ -125,8 +130,8 @@ await fastify.register(cors, {
     }
     return callback(null, false);
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Admin-Key"],
   credentials: true,
 });
 
@@ -143,8 +148,48 @@ await fastify.register(rateLimit, {
   cache: 10000, // Cache up to 10000 entries
 });
 
-// Request sanitization
+// Request sanitization and response wrapping do not alter signed workflow messages.
 fastify.addHook("preValidation", sanitizeInput);
+fastify.addHook("onSend", async (request, _reply, payload) => {
+  if (request.routeOptions.config?.rawWorkflow) return payload;
+  let data;
+  try { data = JSON.parse(payload); } catch { return payload; }
+  if (data === null || data.name || data.version || data.status || data.timestamp || data.openapi) return payload;
+  return JSON.stringify({ status: data.status || "success", message: data.message || "", ...(data.data && { data: data.data }) });
+});
+
+fastify.decorate("authenticate", async (request, reply) => validateApiKey(request, reply));
+const workflowReceiver = workflowConfig.qstashCurrentSigningKey && workflowConfig.qstashNextSigningKey
+  ? new Receiver({ currentSigningKey: workflowConfig.qstashCurrentSigningKey, nextSigningKey: workflowConfig.qstashNextSigningKey, devMode: false })
+  : null;
+
+// Signature verification requires the exact bytes received from QStash.
+await fastify.register(async (scope) => {
+  scope.removeContentTypeParser("application/json");
+  scope.addContentTypeParser("application/json", { parseAs: "buffer" }, (_request, body, done) => done(null, body));
+  for (const [path, handler] of [
+    ["/api/workflows/message", messageWorkflow],
+    ["/api/workflows/batch-message", batchMessageWorkflow],
+    ["/api/workflows/cleanup", cleanupWorkflow],
+  ]) {
+    scope.post(path, { config: { rawWorkflow: true, rateLimit: false } }, async (request, reply) => {
+      if (!workflowReceiver || !request.headers["upstash-signature"]) {
+        return reply.code(401).send({ status: "error", message: "Workflow signature required" });
+      }
+      const url = new URL(path, workflowConfig.baseUrl);
+      try {
+        await workflowReceiver.verify({ signature: request.headers["upstash-signature"], body: Buffer.isBuffer(request.body) ? request.body.toString("utf8") : "", url: url.toString() });
+      } catch {
+        return reply.code(401).send({ status: "error", message: "Invalid workflow signature" });
+      }
+      const webRequest = new Request(url, { method: "POST", headers: request.headers, body: request.body });
+      const response = await handler(webRequest);
+      response.headers.forEach((value, key) => reply.header(key, value));
+      return reply.code(response.status).send(Buffer.from(await response.arrayBuffer()));
+    });
+  }
+});
+
 
 // Request timing
 fastify.addHook("onRequest", (request, _reply, done) => {
@@ -162,29 +207,6 @@ if (appConfig.isDevelopment) {
   });
 }
 
-// Response wrapper
-fastify.addHook("onSend", async (_request, _reply, payload) => {
-  let data;
-  try {
-    data = JSON.parse(payload);
-  } catch {
-    return payload;
-  }
-
-  if (data === null) {
-    return payload;
-  }
-  if (data.name || data.version || data.status || data.timestamp || data.openapi) {
-    return payload;
-  }
-
-  const response = {
-    status: data.status || "success",
-    message: data.message || "",
-    ...(data.data && { data: data.data }),
-  };
-  return JSON.stringify(response);
-});
 
 // Register routes
 fastify.register(rootRoute);
@@ -197,6 +219,8 @@ fastify.register(chatRoute);
 fastify.register(groupRoute);
 fastify.register(messageActionsRoute);
 fastify.register(autoResponseRoute);
+fastify.register(queueManagementRoutes);
+fastify.register(adminRoute);
 
 // Global error handler
 fastify.setErrorHandler(async (error, _request, reply) => {
@@ -219,14 +243,13 @@ export function startServer() {
     }
     logger.info(`Server running at ${address}`);
     logger.info(`API Documentation: ${address}/docs`);
-    if (queueConfig.connection !== "redis") {
-      const runScheduler = () => processScheduledMessages().catch((error) => {
-        logger.error({ error }, "Scheduled message polling failed");
-      });
-      runScheduler();
-      const timer = setInterval(runScheduler, 60_000);
-      timer.unref();
-    }
+    // Existing SQLite schedules still need the local worker after migration.
+    const runLegacyScheduler = () => processScheduledMessages().catch((error) => {
+      logger.error({ error }, "Legacy SQLite message polling failed");
+    });
+    runLegacyScheduler();
+    const timer = setInterval(runLegacyScheduler, 60_000);
+    timer.unref();
   });
 }
 

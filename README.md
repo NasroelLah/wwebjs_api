@@ -6,7 +6,8 @@ REST API untuk WhatsApp Web dengan dukungan webhook.
 
 - Autentikasi Bearer token
 - Kirim pesan ke grup/individual (teks, gambar, dokumen)
-- Jadwal pengiriman pesan
+- Jadwal pengiriman pesan (Upstash Redis + Upstash Workflow)
+- Dashboard admin `/admin` untuk memantau dan mengoreksi status pesan terjadwal
 - Webhook untuk pesan masuk
 - Rate limiting & compression
 - SQLite database (zero config)
@@ -37,6 +38,15 @@ WEBHOOK_URL=https://your-webhook.com/endpoint
 
 # SQLite (opsional, default: ./data/whatsapp_api.db)
 SQLITE_PATH=./data/whatsapp_api.db
+
+# Upstash (wajib untuk pesan terjadwal)
+UPSTASH_REDIS_REST_URL=https://your-db.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your_redis_rest_token
+QSTASH_TOKEN=your_qstash_token
+QSTASH_CURRENT_SIGNING_KEY=your_current_signing_key
+QSTASH_NEXT_SIGNING_KEY=your_next_signing_key
+# URL publik API ini; QStash memanggil {WORKFLOW_BASE_URL}/api/workflows/*
+WORKFLOW_BASE_URL=https://your-public-api.example
 ```
 
 Secara default header `X-Forwarded-*` tidak dipercaya. Jika aplikasi berada di belakang reverse proxy, set `TRUSTED_PROXIES` ke alamat IP/CIDR proxy yang dikontrol, dipisahkan koma; jangan izinkan akses langsung yang melewati proxy. Pengaturan ini diperlukan agar rate limit menggunakan alamat klien yang benar.
@@ -44,7 +54,7 @@ Secara default header `X-Forwarded-*` tidak dipercaya. Jika aplikasi berada di b
 ## Pengiriman dan penjadwalan
 
 - Status WhatsApp `READY` menunggu event `ready`; `authenticated` belum berarti client siap mengirim.
-- `QUEUE_CONNECTION=cron` menyimpan jadwal di SQLite dan memeriksanya setiap 60 detik di proses utama, menggunakan client WhatsApp yang sama. Pesan tetap menunggu jika client belum siap. `QUEUE_CONNECTION=redis` memakai Bull dan Redis; API menunggu enqueue berhasil sebelum melaporkan jadwal diterima.
+- Pesan terjadwal disimpan di Upstash Redis lalu dipicu melalui Upstash Workflow (QStash), yang memanggil `POST {WORKFLOW_BASE_URL}/api/workflows/message`. API hanya melaporkan jadwal diterima setelah penyimpanan Redis dan trigger QStash berhasil; jika trigger gagal, pesan ditandai `enqueue_unknown` dan error dikembalikan. Callback wajib bertanda tangan: tanpa `QSTASH_CURRENT_SIGNING_KEY` dan `QSTASH_NEXT_SIGNING_KEY`, endpoint workflow menolak semua permintaan (401) pada environment apa pun. `QSTASH_DEV` tidak boleh aktif di production; aplikasi menolak start. Jadwal dengan waktu yang sudah lewat ditolak dengan HTTP 400. Jadwal lama di SQLite tetap diproses oleh worker lokal setiap 60 detik sampai habis.
 - Pesan terjadwal disimpan dengan status `scheduled`, `processing`, `sent`, `failed`, `unknown`, atau `enqueue_unknown`. Status `unknown`, `enqueue_unknown`, atau `processing` setelah proses berhenti memerlukan pemeriksaan manual sebelum dikirim ulang: operasi WhatsApp atau Redis mungkin sudah berhasil. Status ini tidak otomatis di-retry untuk mengurangi risiko pesan ganda.
 - Timeout mengembalikan HTTP 408 dengan status pengiriman tidak diketahui. Timeout tidak membatalkan operasi WhatsApp; periksa chat sebelum mengirim ulang.
 - Respons sukses `POST /messages/:id/forward` tidak lagi menyertakan `data.id` karena `Message.forward()` upstream tidak mengembalikan ID pesan baru. Pastikan konsumen tidak bergantung pada field tersebut.
@@ -66,7 +76,7 @@ Jika state tetap `OPENING` atau `UNLAUNCHED`, periksa koneksi dan akses WhatsApp
 - Node.js `^22.19.0 || ^24.0.0 || >=26.0.0`; gunakan Node.js 24 LTS jika memungkinkan. Node.js 18 dan 20 tidak lagi didukung oleh dependensi terbaru.
 - pnpm 12.16.1; `pnpm-lock.yaml` adalah lockfile yang digunakan untuk instalasi reproducible.
 - Chrome/Chromium yang kompatibel dengan Puppeteer, dikonfigurasi melalui `CHROMIUM_PATH` di `.env`. Script instalasi Puppeteer dinonaktifkan; browser tidak diunduh otomatis.
-- Redis hanya diperlukan jika `QUEUE_CONNECTION=redis`; Bull menggunakan klien Redis bawaannya.
+- Akun Upstash dengan Redis dan QStash. Endpoint `WORKFLOW_BASE_URL` harus dapat dijangkau dari internet oleh QStash.
 
 Paket `better-sqlite3` menggunakan binary bawaan untuk platform yang didukung. Lifecycle scripts dependensi dibatasi di `pnpm-workspace.yaml`; platform tanpa binary bawaan memerlukan build native sesuai [panduan better-sqlite3](https://github.com/WiseLibs/better-sqlite3/blob/master/docs/compilation.md).
 

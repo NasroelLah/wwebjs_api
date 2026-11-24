@@ -48,6 +48,7 @@ export const NODE_ENV = getEnvVar('NODE_ENV', 'development', 'string');
 export const API_KEY = getEnvVar('API_KEY', 'dev-api-key-123', 'string', NODE_ENV === 'production');
 export const HOST_PORT = getEnvVar('HOST_PORT', 3000, 'number');
 export const WEBHOOK_URL = getEnvVar('WEBHOOK_URL', null, 'string');
+export const WEBHOOK_TIMEOUT_MS = Number(getEnvVar('WEBHOOK_TIMEOUT_MS', '10000', 'string'));
 export const ENABLE_LOGGER = getEnvVar('ENABLE_LOGGER', false, 'boolean');
 
 // Rate Limiting
@@ -73,16 +74,18 @@ export const messageConfig = {
   delay: getEnvVar('MESSAGE_DELAY', 0, 'number'),
 };
 
-// Queue Configuration
-export const queueConfig = {
-  connection: getEnvVar('QUEUE_CONNECTION', 'cron', 'string'),
-  redis: {
-    host: getEnvVar('REDIS_HOST', '127.0.0.1', 'string'),
-    port: getEnvVar('REDIS_PORT', 6379, 'number'),
-    user: getEnvVar('REDIS_USER', '', 'string'),
-    password: getEnvVar('REDIS_PASSWORD', '', 'string'),
-  },
+// Upstash Workflow configuration. Signing keys are checked before accepting callbacks.
+export const workflowConfig = {
+  qstashUrl: getEnvVar('QSTASH_URL', 'https://qstash.upstash.io', 'string'),
+  qstashToken: getEnvVar('QSTASH_TOKEN', null, 'string'),
+  qstashCurrentSigningKey: getEnvVar('QSTASH_CURRENT_SIGNING_KEY', null, 'string'),
+  qstashNextSigningKey: getEnvVar('QSTASH_NEXT_SIGNING_KEY', null, 'string'),
+  baseUrl: getEnvVar('WORKFLOW_BASE_URL', `http://localhost:${HOST_PORT}`, 'string'),
 };
+
+if (NODE_ENV === 'production' && ['true', '1'].includes(process.env.QSTASH_DEV)) {
+  throw new AppError(ErrorTypes.CONFIGURATION_ERROR, HttpStatusCodes.INTERNAL_SERVER_ERROR, 'QSTASH_DEV must not be enabled in production', false);
+}
 
 // Database Configuration
 export const dbConfig = {
@@ -115,6 +118,10 @@ if (!Number.isSafeInteger(browserConfig.authTimeoutMs) || browserConfig.authTime
     'WWEBJS_AUTH_TIMEOUT_MS must be a positive integer in milliseconds',
     false
   );
+}
+
+if (!Number.isSafeInteger(WEBHOOK_TIMEOUT_MS) || WEBHOOK_TIMEOUT_MS <= 0) {
+  throw new AppError(ErrorTypes.CONFIGURATION_ERROR, HttpStatusCodes.INTERNAL_SERVER_ERROR, 'WEBHOOK_TIMEOUT_MS must be a positive integer', false);
 }
 
 if (browserConfig.webVersion && !/^\d+(?:\.\d+)+(?:-[a-zA-Z0-9]+)?$/.test(browserConfig.webVersion)) {

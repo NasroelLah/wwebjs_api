@@ -15,7 +15,6 @@ test("client errors and rate limits do not terminate the server", { timeout: 300
       HOST_PORT: "0",
       API_KEY: "test-api-key",
       SQLITE_PATH: ":memory:",
-      QUEUE_CONNECTION: "cron",
       WEBHOOK_URL: "",
       ALLOWED_ORIGINS: "http://allowed.local",
       TRUSTED_PROXIES: "",

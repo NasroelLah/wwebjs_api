@@ -11,8 +11,7 @@ export async function scheduleDispatch(chatId, content, options, schedule) {
   const delay = scheduledTime.toMillis() - now.toMillis();
   if (delay > 0) {
     logger.info(`Message scheduled in ${delay} ms`);
-    await addMessageToQueue(chatId, content, options, delay);
-    return true;
+    return await addMessageToQueue(chatId, content, options, delay);
   }
   logger.warn(`Scheduled time ${schedule} is in the past.`);
   return false;

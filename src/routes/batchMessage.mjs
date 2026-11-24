@@ -3,9 +3,9 @@ import logger from "../logger.mjs";
 import { validateApiKey } from "../middleware/auth.mjs";
 import { buildMessageContent } from "../helpers/messageHelper.mjs";
 import { scheduleDispatch } from "../helpers/scheduleHelper.mjs";
-import { sendMessageWithRetry } from "../helpers/sendHelper.mjs";
+import { addBatchMessagesToQueue } from "../helpers/queueHelper.mjs";
 import { isValidScheduleFormat } from "../helpers/validationHelper.mjs";
-import { batchMessageSchema, successResponseSchema, errorResponseSchema } from "../schemas/messageSchemas.mjs";
+import { batchMessageSchema, errorResponseSchema } from "../schemas/messageSchemas.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
 
 export async function batchMessageRoute(fastify) {
@@ -32,7 +32,8 @@ export async function batchMessageRoute(fastify) {
       tags: ['Messages'],
       ...batchMessageSchema,
       response: {
-        200: successResponseSchema,
+        200: { type: 'object', properties: { status: { type: 'string' }, message: { type: 'string' }, data: { type: 'array', items: { type: 'object', additionalProperties: true } } } },
+        202: { type: 'object', properties: { status: { type: 'string' }, message: { type: 'string' }, data: { type: 'object', additionalProperties: true } } },
         400: errorResponseSchema,
         401: errorResponseSchema,
         500: errorResponseSchema
@@ -91,6 +92,7 @@ export async function batchMessageRoute(fastify) {
     }, "Batch message request received");
 
     const results = [];
+    const queuedMessages = [];
     for (const msg of messages) {
       const {
         recipient_type,
@@ -122,25 +124,16 @@ export async function batchMessageRoute(fastify) {
         });
         logger.info(`Preparing to send ${type} message to ${chatId}`);
 
-        if (
-          schedule &&
-          await scheduleDispatch(chatId, messageContent, sendOptions, schedule)
-        ) {
-          logger.info(`Message scheduled for ${chatId} at ${schedule}`);
-          results.push({
-            chatId,
-            status: "success",
-            message: "Message scheduled successfully.",
-          });
-          continue;
+        if (schedule) {
+          const messageId = await scheduleDispatch(chatId, messageContent, sendOptions, schedule);
+          if (messageId) {
+            results.push({ chatId, status: "success", message: "Message scheduled successfully.", messageId });
+            continue;
+          }
+          throw new AppError(ErrorTypes.VALIDATION_ERROR, HttpStatusCodes.BAD_REQUEST, "Scheduled time must be in the future", true);
         }
-        await sendMessageWithRetry(chatId, messageContent, sendOptions);
-        logger.info(`Message sent to ${chatId}`);
-        results.push({
-          chatId,
-          status: "success",
-          message: "Message sent successfully.",
-        });
+        queuedMessages.push({ chatId, content: messageContent, options: sendOptions });
+        results.push({ chatId, status: "queued", message: "Message queued for batch workflow." });
       } catch (error) {
         logger.error({
           chatId,
@@ -157,27 +150,15 @@ export async function batchMessageRoute(fastify) {
       }
     }
 
-    const duration = Date.now() - startTime;
-    const successCount = results.filter(r => r.status === 'success').length;
-    const errorCount = results.filter(r => r.status === 'error').length;
-
-    logger.info({
-      messageCount: messages.length,
-      successCount,
-      errorCount,
-      duration
-    }, "Batch message processing completed");
-
-    return reply.code(200).send({
+    if (queuedMessages.length === 0) {
+      return reply.code(200).send({ status: "success", message: "Batch process completed", data: results });
+    }
+    const batch = await addBatchMessagesToQueue(queuedMessages);
+    logger.info({ batchId: batch.batchId, duration: Date.now() - startTime }, "Batch message workflow queued");
+    return reply.code(202).send({
       status: "success",
-      message: "Batch process completed",
-      data: results,
-      meta: {
-        totalMessages: messages.length,
-        successfulMessages: successCount,
-        failedMessages: errorCount,
-        processingTime: `${duration}ms`
-      }
+      message: "Batch accepted for asynchronous processing",
+      data: { ...batch, results },
     });
   });
 }
