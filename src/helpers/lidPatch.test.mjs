@@ -146,6 +146,20 @@ describe("lidMigrationPatch runtime behavior", () => {
     assert.equal(window.__wwebjsLidPatchStatus.hooks.length, 2);
   });
 
+  test("applies when only the optional gating hook is absent from the WhatsApp Web build", async () => {
+    const { window, wid } = createFakeWindow();
+    delete window.require("WAWebLid1X1MigrationGating").Lid1X1MigrationUtils.isLidMigrated;
+    const intervals = [];
+    const run = new Function("window", "setInterval", "clearInterval", `return (${getLidPatchSource()})()`);
+    await run(window, (callback) => { intervals.push(callback); return 1; }, () => {});
+    const status = window.__wwebjsLidPatchStatus;
+    assert.equal(status.state, "applied");
+    assert.deepEqual(status.hooks, ["WAWebLidMigrationUtils.toUserLid", "WAWebLidMigrationUtils.toUserLidOrThrow"]);
+    assert.deepEqual(status.missing, ["WAWebLid1X1MigrationGating.Lid1X1MigrationUtils.isLidMigrated"]);
+    assert.equal(window.require("WAWebLidMigrationUtils").toUserLidOrThrow(wid), wid);
+    assert.equal(intervals.length, 0, "no retry timer is needed once required hooks are installed");
+  });
+
 
   test("evalOnNewDoc export is a function (Client option contract)", () => {
     assert.equal(typeof lidMigrationPatch, "function");

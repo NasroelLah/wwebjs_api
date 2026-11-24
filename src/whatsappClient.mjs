@@ -93,7 +93,7 @@ async function checkLidPatch(page) {
     } else if (status?.state !== 'applied') {
       logger.warn({ status }, 'Experimental LID patch unavailable for this WhatsApp Web version');
     } else {
-      logger.info({ hooks: status.hooks }, 'Experimental LID hooks installed; compatibility is not guaranteed');
+      logger.info({ hooks: status.hooks, missing: status.missing }, 'Experimental LID hooks installed; compatibility is not guaranteed');
     }
   } catch (error) {
     logger.warn({ error }, 'Unable to inspect experimental LID patch');
