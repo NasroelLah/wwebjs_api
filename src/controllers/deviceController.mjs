@@ -1,5 +1,5 @@
 import logger from "../logger.mjs";
-import { client, lastQr, getClientState, isClientReady } from "../whatsappClient.mjs";
+import { client, lastQr, getClientState, isClientReady, waitForWhatsAppConnection, stopWhatsApp } from "../whatsappClient.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
 
 export async function getDeviceStatus(request, reply) {
@@ -8,7 +8,7 @@ export async function getDeviceStatus(request, reply) {
     const isReady = isClientReady();
     
     let deviceInfo = null;
-    if (client.info && client.info.wid) {
+    if (isReady && client.info?.wid) {
       deviceInfo = {
         number: client.info.wid.user,
         name: client.info.pushname || 'Unknown',
@@ -22,7 +22,7 @@ export async function getDeviceStatus(request, reply) {
       data: {
         state: clientState,
         isReady,
-        isConnected: client.info && client.info.wid ? true : false,
+        isConnected: clientState === 'CONNECTED' || isReady,
         device: deviceInfo,
         lastQrGenerated: lastQr ? new Date().toISOString() : null
       }
@@ -40,103 +40,19 @@ export async function getDeviceStatus(request, reply) {
 
 export async function connectDevice(request, reply) {
   try {
-    const clientState = getClientState();
-    
-    if (isClientReady()) {
-      return reply.code(200).send({
-        status: "success",
-        message: "Device is already connected and ready",
-        data: {
-          state: clientState,
-          device: client.info ? {
-            number: client.info.wid.user,
-            name: client.info.pushname || 'Unknown'
-          } : null
-        }
-      });
-    }
-    
-    if (clientState === 'CONNECTING' && lastQr) {
-      return reply.code(200).send({
-        status: "success",
-        message: "Connection in progress. Please scan the QR code",
-        data: {
-          state: clientState,
-          qr: lastQr,
-          instruction: "Scan this QR code with your WhatsApp mobile app"
-        }
-      });
-    }
-    
-    // If disconnected, try to reinitialize
-    if (clientState === 'DISCONNECTED') {
-      logger.info("Attempting to reconnect WhatsApp client");
-      
-      // Wait for QR code generation with timeout
-      const qrPromise = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("QR code generation timeout"));
-        }, 10000);
-        
-        const onQr = (qr) => {
-          clearTimeout(timeout);
-          client.removeListener('qr', onQr);
-          resolve(qr);
-        };
-        
-        client.once('qr', onQr);
-        
-        // If already have QR, resolve immediately
-        if (lastQr) {
-          clearTimeout(timeout);
-          resolve(lastQr);
-        }
-      });
-      
-      try {
-        client.initialize();
-        const qrCode = await qrPromise;
-        
-        return reply.code(200).send({
-          status: "success",
-          message: "QR code generated successfully",
-          data: {
-            state: 'CONNECTING',
-            qr: qrCode,
-            instruction: "Scan this QR code with your WhatsApp mobile app",
-            expiresIn: "2 minutes"
-          }
-        });
-      } catch (error) {
-        logger.error({ error: error.message }, "Failed to generate QR code");
-        throw new AppError(
-          ErrorTypes.WHATSAPP_ERROR,
-          HttpStatusCodes.INTERNAL_SERVER_ERROR,
-          "Failed to generate QR code. Please try again.",
-          true
-        );
-      }
-    }
-    
-    // Fallback: return current QR if available
-    if (lastQr) {
-      return reply.code(200).send({
-        status: "success",
-        message: "Using existing QR code",
-        data: {
-          state: clientState,
-          qr: lastQr,
-          instruction: "Scan this QR code with your WhatsApp mobile app"
-        }
-      });
-    }
-    
-    throw new AppError(
-      ErrorTypes.WHATSAPP_ERROR,
-      HttpStatusCodes.SERVICE_UNAVAILABLE,
-      "Unable to generate QR code. WhatsApp service may be unavailable.",
-      true
-    );
+    const connection = await waitForWhatsAppConnection();
+    return reply.code(200).send({
+      status: "success",
+      message: connection.state === "READY" ? "Device is already connected and ready" : "Connection in progress. Please scan the QR code",
+      data: connection.state === "READY" ? {
+        state: "READY",
+        device: client.info?.wid ? { number: client.info.wid.user, name: client.info.pushname || "Unknown" } : null,
+      } : {
+        state: connection.state,
+        qr: connection.qr,
+        instruction: "Scan this QR code with your WhatsApp mobile app",
+      },
+    });
   } catch (error) {
     if (error instanceof AppError) throw error;
     
@@ -162,7 +78,7 @@ export async function removeDevice(request, reply) {
     }
     
     try {
-      await client.logout();
+      await stopWhatsApp(true);
       logger.info("Device disconnected successfully");
       
       return reply.code(200).send({

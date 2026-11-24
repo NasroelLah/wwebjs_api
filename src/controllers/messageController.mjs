@@ -153,7 +153,7 @@ export async function reactToMessage(id, emoji) {
  * Forward a message
  * @param {string} id - Message ID
  * @param {string} chatId - Target chat ID
- * @returns {Promise<Object>} Forwarded message info
+ * @returns {Promise<void>} Resolves when WhatsApp accepts the forward; upstream returns no message ID
  */
 export async function forwardMessage(id, chatId) {
   ensureClientReady();
@@ -171,10 +171,8 @@ export async function forwardMessage(id, chatId) {
       );
     }
     
-    const forwardedMsg = await message.forward(targetChatId);
+    await message.forward(targetChatId);
     logger.info({ messageId: id, targetChatId }, "Message forwarded");
-    
-    return { id: forwardedMsg.id._serialized };
   } catch (error) {
     if (error instanceof AppError) throw error;
     logger.error({ error, messageId: id }, "Failed to forward");
@@ -344,7 +342,15 @@ export async function pinMessage(id, duration = 604800) {
       );
     }
     
-    await message.pin(duration);
+    const pinned = await message.pin(duration);
+    if (!pinned) {
+      throw new AppError(
+        ErrorTypes.WHATSAPP_ERROR,
+        HttpStatusCodes.INTERNAL_SERVER_ERROR,
+        "Failed to pin message",
+        true
+      );
+    }
     logger.info({ messageId: id, duration }, "Message pinned");
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -377,7 +383,15 @@ export async function unpinMessage(id) {
       );
     }
     
-    await message.unpin();
+    const unpinned = await message.unpin();
+    if (!unpinned) {
+      throw new AppError(
+        ErrorTypes.WHATSAPP_ERROR,
+        HttpStatusCodes.INTERNAL_SERVER_ERROR,
+        "Failed to unpin message",
+        true
+      );
+    }
     logger.info({ messageId: id }, "Message unpinned");
   } catch (error) {
     if (error instanceof AppError) throw error;

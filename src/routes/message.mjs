@@ -67,7 +67,7 @@ export async function messageRoute(fastify) {
 
       logger.debug({ type, chatId }, "Preparing message");
 
-      if (schedule && scheduleDispatch(chatId, messageContent, sendOptions, schedule)) {
+      if (schedule && await scheduleDispatch(chatId, messageContent, sendOptions, schedule)) {
         logger.info({ chatId, schedule }, "Message scheduled");
         return reply.send({
           status: "success",

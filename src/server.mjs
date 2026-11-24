@@ -15,6 +15,7 @@ import {
   ENABLE_LOGGER,
   RATE_LIMIT,
   RATE_LIMIT_EXPIRE,
+  queueConfig,
   TRUSTED_PROXIES,
   appConfig,
 } from "./config.mjs";
@@ -29,7 +30,7 @@ import { messageActionsRoute } from "./routes/messageActions.mjs";
 import { autoResponseRoute } from "./routes/autoResponse.mjs";
 import { deviceRoute } from "./routes/device.mjs";
 import logger from "./logger.mjs";
-import bree from "./jobs/breeTasks.mjs";
+import { processScheduledMessages } from "./jobs/processScheduledMessages.mjs";
 import { errorHandler } from "./errors/ErrorHandler.mjs";
 
 // Get package version
@@ -218,7 +219,14 @@ export function startServer() {
     }
     logger.info(`Server running at ${address}`);
     logger.info(`API Documentation: ${address}/docs`);
-    bree.start();
+    if (queueConfig.connection !== "redis") {
+      const runScheduler = () => processScheduledMessages().catch((error) => {
+        logger.error({ error }, "Scheduled message polling failed");
+      });
+      runScheduler();
+      const timer = setInterval(runScheduler, 60_000);
+      timer.unref();
+    }
   });
 }
 

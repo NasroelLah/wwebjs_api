@@ -10,5 +10,5 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-initializeWhatsApp();
+initializeWhatsApp().catch(() => {});
 startServer();

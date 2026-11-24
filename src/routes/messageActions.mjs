@@ -169,12 +169,11 @@ export async function messageActionsRoute(fastify) {
       if (!message) {
         throw new AppError(ErrorTypes.WHATSAPP_ERROR, HttpStatusCodes.NOT_FOUND, "Message not found", true);
       }
-      const forwardedMsg = await message.forward(targetChatId);
+      await message.forward(targetChatId);
       logger.info({ messageId: id, targetChatId }, "Message forwarded");
       return reply.send({
         status: "success",
         message: "Message forwarded",
-        data: { id: forwardedMsg.id._serialized },
       });
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -344,7 +343,10 @@ export async function messageActionsRoute(fastify) {
       if (!message) {
         throw new AppError(ErrorTypes.WHATSAPP_ERROR, HttpStatusCodes.NOT_FOUND, "Message not found", true);
       }
-      await message.pin(duration);
+      const pinned = await message.pin(duration);
+      if (!pinned) {
+        throw new AppError(ErrorTypes.WHATSAPP_ERROR, HttpStatusCodes.INTERNAL_SERVER_ERROR, "Failed to pin message", true);
+      }
       logger.info({ messageId: id, duration }, "Message pinned");
       return reply.send({ status: "success", message: "Message pinned" });
     } catch (error) {
@@ -373,7 +375,10 @@ export async function messageActionsRoute(fastify) {
       if (!message) {
         throw new AppError(ErrorTypes.WHATSAPP_ERROR, HttpStatusCodes.NOT_FOUND, "Message not found", true);
       }
-      await message.unpin();
+      const unpinned = await message.unpin();
+      if (!unpinned) {
+        throw new AppError(ErrorTypes.WHATSAPP_ERROR, HttpStatusCodes.INTERNAL_SERVER_ERROR, "Failed to unpin message", true);
+      }
       logger.info({ messageId: id }, "Message unpinned");
       return reply.send({ status: "success", message: "Message unpinned" });
     } catch (error) {

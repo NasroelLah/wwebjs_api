@@ -1,26 +1,20 @@
 /**
  * @fileoverview LID-migration runtime patch for whatsapp-web.js (upstream issue #3834).
  *
- * WhatsApp Web is migrating 1:1 chats from phone-number identities (@c.us) to
- * LID identities (@lid). On affected clients (isLidMigrated = true, common on
- * WhatsApp Business accounts) the page-internal conversion throws
- * "Error: No LID for user" for numbers that have no LID mapping yet, which
- * makes Client.sendMessage and getChatById fail inside
- * WAWebFindChatAction.findOrCreateLatestChat. Retrying cannot succeed.
+ * Some WhatsApp Web versions can fail to resolve phone-number identities to
+ * LIDs and report "No LID for user". This patch attempts a guarded fallback
+ * for known errors; success depends on the current WhatsApp Web internals.
  *
- * This patch injects guarded wrappers into the page:
- *   - Lid1X1MigrationUtils.isLidMigrated: original logic runs; falls back to
- *     false only if it throws (fixed-value overrides can cause logouts).
- *   - WAWebLidMigrationUtils.toUserLid / toUserLidOrThrow: fall back to the
- *     original phone-number WID instead of throwing, restoring the legacy
- *     addressing path for numbers without an LID.
+ * This is an experimental compatibility patch for private WhatsApp Web modules,
+ * not a documented upstream API or a guarantee that LID resolution will work.
+ * Only known LID errors are intercepted. Installation status is exposed for
+ * diagnostics; renamed or absent targets are reported as unavailable.
  *
- * Injection happens on every new document through the documented Client
- * option `evalOnNewDoc` (whatsapp-web.js >= 1.34), before WhatsApp Web
- * finishes loading, and is idempotent per document.
+ * Injection uses the documented `evalOnNewDoc` Client option and is idempotent
+ * per document.
  */
 
-/** Page error strings that indicate a deterministic LID-resolution failure. */
+/** Page error strings that indicate an LID-resolution failure. */
 const LID_ERROR_PATTERNS = [
   "No LID for user",
   "Lid is missing in chat table",
@@ -28,8 +22,8 @@ const LID_ERROR_PATTERNS = [
 ];
 
 /**
- * Checks whether an error is a deterministic LID-resolution failure
- * (wwebjs/whatsapp-web.js#3834). Such errors must not be retried.
+ * Checks whether an error indicates an LID-resolution failure
+ * (wwebjs/whatsapp-web.js#3834). Avoid automatically retrying the send.
  * @param {unknown} error
  * @returns {boolean}
  */
@@ -46,37 +40,54 @@ export function isLidResolutionError(error) {
  */
 export function getLidPatchSource() {
   return `function () {
-  const TAG = '__wwebjsLidPatchApplied';
-  if (window[TAG]) return;
+  const STATUS = '__wwebjsLidPatchStatus';
+  if (window[STATUS]) return;
+  const status = window[STATUS] = { state: 'waiting', hooks: [] };
+  let installed = [];
+  const targets = [
+    { module: 'WAWebLid1X1MigrationGating', function: 'Lid1X1MigrationUtils.isLidMigrated', fallback: 'boolean' },
+    { module: 'WAWebLidMigrationUtils', function: 'toUserLid', fallback: 'wid' },
+    { module: 'WAWebLidMigrationUtils', function: 'toUserLidOrThrow', fallback: 'wid' },
+  ];
+  const isLidError = (error) => /no lid for user|lid is missing in chat table|does not have an accountlid/i.test(String(error?.message ?? error ?? ''));
   const inject = () => {
-    if (window[TAG]) return true;
-    if (typeof window.WWebJS === 'undefined' || !window.WWebJS.injectToFunction) return false;
-    const required = ['WAWebLid1X1MigrationGating', 'WAWebLidMigrationUtils', 'WAWebWidFactory'];
-    const ready = required.every((m) => {
-      try { return !!window.require(m); } catch { return false; }
-    });
-    if (!ready) return false;
-    window[TAG] = true;
-    const guarded = (target, callback) => {
-      try { window.WWebJS.injectToFunction(target, callback); } catch { /* module renamed in a newer web version */ }
-    };
-    guarded(
-      { module: 'WAWebLid1X1MigrationGating', function: 'Lid1X1MigrationUtils.isLidMigrated' },
-      (module, func, ...args) => {
-        try { return func.apply(module, args); } catch { return false; }
-      }
-    );
-    const lidFallback = (module, func, wid) => {
-      try { return func.call(module, wid); } catch { return wid; }
-    };
-    guarded({ module: 'WAWebLidMigrationUtils', function: 'toUserLid' }, lidFallback);
-    guarded({ module: 'WAWebLidMigrationUtils', function: 'toUserLidOrThrow' }, lidFallback);
+    if (!window.WWebJS?.injectToFunction || typeof window.require !== 'function') return false;
+    for (const target of targets) {
+      const key = target.module + '.' + target.function;
+      if (installed.some((hook) => hook.key === key)) continue;
+      try {
+        const path = target.function.split('.');
+        const name = path.pop();
+        let owner = window.require(target.module);
+        for (const part of path) owner = owner?.[part];
+        if (!owner || typeof owner[name] !== 'function') continue;
+        const original = owner[name];
+        const onError = (error, args) => {
+          if (isLidError(error)) return target.fallback === 'boolean' ? false : args[0];
+          throw error;
+        };
+        owner[name] = function (...args) {
+          try {
+            const result = original.apply(owner, args);
+            return result && typeof result.then === 'function'
+              ? Promise.resolve(result).catch((error) => onError(error, args))
+              : result;
+          } catch (error) { return onError(error, args); }
+        };
+        if (owner[name] !== original) installed.push({ key, owner, name, wrapped: owner[name] });
+      } catch { /* Retry while WhatsApp Web loads or report an unavailable hook. */ }
+    }
+    installed = installed.filter((hook) => hook.owner[hook.name] === hook.wrapped);
+    status.hooks = installed.map((hook) => hook.key);
+    if (installed.length !== targets.length) return false;
+    status.state = 'applied';
     return true;
   };
   if (inject()) return;
   let tries = 0;
   const timer = setInterval(() => {
-    if (inject() || ++tries > 240) clearInterval(timer);
+    if (inject()) clearInterval(timer);
+    else if (++tries >= 240) { status.state = 'unavailable'; clearInterval(timer); }
   }, 250);
 }`;
 }

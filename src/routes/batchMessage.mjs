@@ -124,7 +124,7 @@ export async function batchMessageRoute(fastify) {
 
         if (
           schedule &&
-          scheduleDispatch(chatId, messageContent, sendOptions, schedule)
+          await scheduleDispatch(chatId, messageContent, sendOptions, schedule)
         ) {
           logger.info(`Message scheduled for ${chatId} at ${schedule}`);
           results.push({

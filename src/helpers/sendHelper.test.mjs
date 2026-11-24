@@ -39,7 +39,7 @@ test("clears the send timeout after success and a synchronous LID failure", asyn
   assert.equal(pending.size, 0);
 });
 
-test("reports HTTP 408 when all send attempts time out", async (t) => {
+test("reports an uncertain timeout without retrying the send", async (t) => {
   const setTimeoutOriginal = globalThis.setTimeout;
   t.mock.method(globalThis, "setTimeout", (callback, delay, ...args) =>
     setTimeoutOriginal(callback, delay >= 1000 ? 0 : delay, ...args)
@@ -49,7 +49,17 @@ test("reports HTTP 408 when all send attempts time out", async (t) => {
   await assert.rejects(sendMessageWithRetry("123@c.us", "hello"), {
     name: "NETWORK_ERROR",
     statusCode: 408,
-    message: "Message send timeout. Please check your connection and try again.",
+    message: "Message send timed out; delivery status is unknown. Check the chat before retrying.",
   });
-  assert.equal(send.mock.calls.length, 3);
+  assert.equal(send.mock.calls.length, 1);
+});
+
+test("does not claim success or retry when WhatsApp returns no message", async (t) => {
+  const send = t.mock.method(client, "sendMessage", async () => undefined);
+  await assert.rejects(sendMessageWithRetry("123@c.us", "hello"), {
+    name: "NETWORK_ERROR",
+    statusCode: 408,
+    message: "WhatsApp did not return a sent message; delivery status is unknown.",
+  });
+  assert.equal(send.mock.calls.length, 1);
 });

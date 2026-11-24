@@ -1,8 +1,11 @@
 import {
   getScheduledMessages,
+  claimScheduledMessage,
   updateMessageStatus,
 } from "../helpers/dbHelper.mjs";
 import { sendMessageWithRetry } from "../helpers/sendHelper.mjs";
+import { isClientReady } from "../whatsappClient.mjs";
+import { HttpStatusCodes } from "../errors/AppError.mjs";
 import logger from "../logger.mjs";
 
 function sleep(ms) {
@@ -21,36 +24,38 @@ function getDelayMs() {
   return Number(delaySetting) * 1000;
 }
 
-if (globalThis.processScheduledMessagesRunning) {
-  console.log('Job "processScheduledMessages.mjs" is already running');
-  process.exit(0);
-}
-globalThis.processScheduledMessagesRunning = true;
+let running = false;
 
-(async () => {
+export async function processScheduledMessages() {
+  if (running || !isClientReady()) return;
+  running = true;
   try {
     const messages = await getScheduledMessages();
-    const now = new Date();
-    await Promise.all(
-      messages.map(async (msg) => {
-        if (new Date(msg.scheduledTime) <= now) {
-          try {
-            const delayMs = getDelayMs();
-            logger.info(`Delaying message to ${msg.chatId} for ${delayMs} ms`);
-            await sleep(delayMs);
-            await sendMessageWithRetry(msg.chatId, msg.content, msg.options);
-            await updateMessageStatus(msg._id, "sent");
-            logger.info(`Scheduled message sent to ${msg.chatId}`);
-          } catch (error) {
-            logger.error(
-              `Error processing message ${msg._id}: ${error.message}`
-            );
-          }
-        }
-      })
-    );
+    for (const msg of messages) {
+      if (msg.scheduledTime > new Date() || !isClientReady()) continue;
+      if (!await claimScheduledMessage(msg._id)) continue;
+      try {
+        const delayMs = getDelayMs();
+        logger.info(`Delaying message to ${msg.chatId} for ${delayMs} ms`);
+        await sleep(delayMs);
+        await sendMessageWithRetry(msg.chatId, msg.content, msg.options || {});
+      } catch (error) {
+        // A timeout does not cancel WhatsApp's operation; never automatically resend it.
+        const status = error.statusCode === HttpStatusCodes.REQUEST_TIMEOUT ? "unknown" : "failed";
+        await updateMessageStatus(msg._id, status);
+        logger.error({ error, id: msg._id, status }, "Scheduled message failed");
+        continue;
+      }
+      try {
+        await updateMessageStatus(msg._id, "sent");
+        logger.info(`Scheduled message sent to ${msg.chatId}`);
+      } catch (error) {
+        // The message may have been delivered; leave the claim intact.
+        logger.error({ error, id: msg._id }, "Message sent but status update failed");
+      }
+    }
   } finally {
-    globalThis.processScheduledMessagesRunning = false;
+    running = false;
   }
-  process.exit(0);
-})();
+}
+

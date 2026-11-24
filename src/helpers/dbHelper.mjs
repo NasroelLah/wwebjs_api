@@ -6,6 +6,7 @@ import { mkdirSync, existsSync } from "fs";
 import logger from "../logger.mjs";
 import { dbConfig } from "../config.mjs";
 import { AppError, ErrorTypes, HttpStatusCodes } from "../errors/AppError.mjs";
+import { serializeScheduledContent, deserializeScheduledContent } from "./scheduledContent.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -130,7 +131,7 @@ export async function saveScheduledMessage(chatId, content, options, delay) {
     stmt.run(
       id,
       chatId,
-      typeof content === "string" ? content : JSON.stringify(content),
+      serializeScheduledContent(content),
       options ? JSON.stringify(options) : null,
       scheduledTime,
       now,
@@ -158,15 +159,16 @@ export async function getScheduledMessages() {
     const stmt = db.prepare(`
       SELECT id, chat_id, content, options, scheduled_time, status, created_at, updated_at
       FROM scheduled_messages
-      WHERE status = 'scheduled'
+      WHERE status = 'scheduled' AND scheduled_time <= ?
+      ORDER BY scheduled_time, created_at
     `);
 
-    const rows = stmt.all();
+    const rows = stmt.all(new Date().toISOString());
 
     return rows.map((row) => ({
       _id: row.id,
       chatId: row.chat_id,
-      content: row.content,
+      content: deserializeScheduledContent(row.content),
       options: row.options ? JSON.parse(row.options) : null,
       scheduledTime: new Date(row.scheduled_time),
       status: row.status,
@@ -182,6 +184,23 @@ export async function getScheduledMessages() {
       true
     );
   }
+}
+
+export async function claimScheduledMessage(id) {
+  await dbManager.connect();
+  const result = dbManager.getDatabase().prepare(`
+    UPDATE scheduled_messages SET status = 'processing', updated_at = ?
+    WHERE id = ? AND status = 'scheduled'
+  `).run(new Date().toISOString(), String(id));
+  return result.changes === 1;
+}
+
+export async function markEnqueueUnknown(id) {
+  await dbManager.connect();
+  dbManager.getDatabase().prepare(`
+    UPDATE scheduled_messages SET status = 'enqueue_unknown', updated_at = ?
+    WHERE id = ? AND status = 'scheduled'
+  `).run(new Date().toISOString(), String(id));
 }
 
 export async function updateMessageStatus(id, status) {

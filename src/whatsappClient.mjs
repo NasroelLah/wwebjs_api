@@ -66,9 +66,37 @@ export const client = new Client({
 
 export let lastQr = null;
 export let clientState = 'DISCONNECTED'; // DISCONNECTED, CONNECTING, CONNECTED, READY
+let initialization = null;
+let stopping = null;
+let lastInitializationError = null;
+let lidDiagnosticTimer = null;
+
+function stopLidDiagnostic() {
+  clearTimeout(lidDiagnosticTimer);
+  lidDiagnosticTimer = null;
+}
+
+async function checkLidPatch(page) {
+  if (!page?.evaluate || client.pupPage !== page || clientState !== 'READY') return;
+  try {
+    const status = await page.evaluate(() => globalThis.__wwebjsLidPatchStatus || null);
+    if (client.pupPage !== page || clientState !== 'READY') return;
+    if (status?.state === 'waiting') {
+      lidDiagnosticTimer = setTimeout(() => void checkLidPatch(page), 61000);
+      lidDiagnosticTimer.unref();
+    } else if (status?.state !== 'applied') {
+      logger.warn({ status }, 'Experimental LID patch unavailable for this WhatsApp Web version');
+    } else {
+      logger.info({ hooks: status.hooks }, 'Experimental LID hooks installed; compatibility is not guaranteed');
+    }
+  } catch (error) {
+    logger.warn({ error }, 'Unable to inspect experimental LID patch');
+  }
+}
 
 // QR code generated - need to scan
 client.on("qr", (qr) => {
+  if (stopping) return;
   qrcode.generate(qr, { small: true });
   lastQr = qr;
   clientState = 'CONNECTING';
@@ -77,19 +105,10 @@ client.on("qr", (qr) => {
 
 // Session authenticated (after QR scan or from saved session)
 client.on("authenticated", () => {
+  if (stopping) return;
   clientState = 'CONNECTED';
+  lastQr = null;
   logger.info("WhatsApp client authenticated - waiting for ready...");
-  
-  // Fallback: jika ready tidak emit dalam 60 detik, coba cek manual
-  setTimeout(() => {
-    if (clientState === 'CONNECTED') {
-      logger.warn("Ready event not received after 60s, checking client info...");
-      if (client.info && client.info.wid) {
-        clientState = 'READY';
-        logger.info("Client has info, forcing READY state");
-      }
-    }
-  }, 60000);
 });
 
 // Loading screen progress
@@ -103,20 +122,29 @@ client.on("loading_screen", (percent, message) => {
 
 // Client fully ready for API calls
 client.on("ready", () => {
+  if (stopping) return;
   clientState = 'READY';
   lastQr = null;
   logger.info("WhatsApp client is READY for API calls");
+  stopLidDiagnostic();
+  void checkLidPatch(client.pupPage);
 });
 
 // Authentication failed
 client.on("auth_failure", (msg) => {
   clientState = 'DISCONNECTED';
+  lastQr = null;
+  lastInitializationError = new Error(`WhatsApp authentication failed: ${msg}`);
+  stopLidDiagnostic();
   logger.error({ message: msg }, "WhatsApp authentication failed");
 });
 
 // Client disconnected
 client.on("disconnected", (reason) => {
   clientState = 'DISCONNECTED';
+  lastQr = null;
+  lastInitializationError = new Error(`WhatsApp disconnected: ${reason}`);
+  stopLidDiagnostic();
   logger.warn({ reason }, "WhatsApp client disconnected");
 });
 
@@ -387,24 +415,80 @@ client.on("contact_changed", async (message, oldId, newId, isContact) => {
 });
 
 export function initializeWhatsApp() {
+  if (stopping) return stopping.then(() => initializeWhatsApp());
+  if (initialization) return initialization;
+  if (clientState !== 'DISCONNECTED') return Promise.resolve();
+  clientState = 'CONNECTING';
+  lastQr = null;
+  lastInitializationError = null;
   logger.info("Initializing WhatsApp client");
-  client.initialize();
+  const attempt = Promise.resolve().then(() => client.initialize()).then(() => {
+    if (lastInitializationError) throw lastInitializationError;
+  }).catch(async (error) => {
+    clientState = 'DISCONNECTED';
+    lastQr = null;
+    lastInitializationError = error;
+    try { await client.destroy(); }
+    catch (cleanupError) { logger.warn({ error: cleanupError }, "Failed to clean up WhatsApp client"); }
+    logger.error({ error }, "WhatsApp initialization failed");
+    throw error;
+  }).finally(() => {
+    if (initialization === attempt) initialization = null;
+  });
+  initialization = attempt;
+  return attempt;
+}
+
+export function waitForWhatsAppConnection(timeoutMs = 15000) {
+  if (stopping) return stopping.then(() => waitForWhatsAppConnection(timeoutMs));
+  if (isClientReady()) return Promise.resolve({ state: clientState, qr: null });
+  if (clientState === 'CONNECTING' && lastQr) return Promise.resolve({ state: clientState, qr: lastQr });
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      client.off('qr', onQr);
+      client.off('ready', onReady);
+      client.off('auth_failure', onFailure);
+      client.off('disconnected', onDisconnected);
+    };
+    const onQr = (qr) => { if (stopping) return; cleanup(); resolve({ state: 'CONNECTING', qr }); };
+    const onReady = () => { if (stopping) return; cleanup(); resolve({ state: 'READY', qr: null }); };
+    const onFailure = (message) => { cleanup(); reject(new Error(`WhatsApp authentication failed: ${message}`)); };
+    const onDisconnected = (reason) => { cleanup(); reject(new Error(`WhatsApp disconnected: ${reason}`)); };
+    const timer = setTimeout(() => { cleanup(); reject(new Error('WhatsApp connection timed out')); }, timeoutMs);
+    client.on('qr', onQr);
+    client.on('ready', onReady);
+    client.once('auth_failure', onFailure);
+    client.once('disconnected', onDisconnected);
+    initializeWhatsApp().catch((error) => { cleanup(); reject(error); });
+  });
+}
+
+export function stopWhatsApp(logout = false) {
+  if (stopping) return stopping;
+  const wasDisconnected = clientState === 'DISCONNECTED';
+  clientState = 'DISCONNECTING';
+  lastQr = null;
+  const operation = (async () => {
+    if (initialization) await initialization.catch(() => {});
+    stopLidDiagnostic();
+    try {
+      if (logout && !wasDisconnected && clientState !== 'DISCONNECTED' && client.pupPage && client.pupBrowser) await client.logout();
+      else await client.destroy();
+    } finally {
+      clientState = 'DISCONNECTED';
+      lastQr = null;
+      lastInitializationError = null;
+    }
+  })().finally(() => { if (stopping === operation) stopping = null; });
+  stopping = operation;
+  return operation;
 }
 
 export function getClientState() {
-  // Jika state masih CONNECTED tapi client.info sudah ada, update ke READY
-  if (clientState === 'CONNECTED' && client.info && client.info.wid) {
-    clientState = 'READY';
-  }
   return clientState;
 }
 
 export function isClientReady() {
-  // Ready jika state READY atau jika CONNECTED dan client.info tersedia
-  if (clientState === 'READY') return true;
-  if (clientState === 'CONNECTED' && client.info && client.info.wid) {
-    clientState = 'READY';
-    return true;
-  }
-  return false;
+  return clientState === 'READY';
 }

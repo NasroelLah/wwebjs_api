@@ -45,24 +45,6 @@ describe("isLidResolutionError", () => {
   });
 });
 
-describe("lidMigrationPatch source", () => {
-  test("is a self-contained function expression", () => {
-    const source = getLidPatchSource();
-    assert.match(source, /^function \(\) \{/);
-    new Function(`(${source})`);
-  });
-
-  test("guards all three LID migration hooks", () => {
-    const source = getLidPatchSource();
-    assert.match(source, /Lid1X1MigrationUtils\.isLidMigrated/);
-    assert.match(source, /'WAWebLidMigrationUtils', function: 'toUserLid'/);
-    assert.match(source, /'WAWebLidMigrationUtils', function: 'toUserLidOrThrow'/);
-  });
-
-  test("is idempotent via an id flag", () => {
-    assert.match(getLidPatchSource(), /__wwebjsLidPatchApplied/);
-  });
-});
 
 describe("lidMigrationPatch runtime behavior", () => {
   // Minimal page-context stand-in: verifies the patch wraps throwing LID
@@ -70,7 +52,6 @@ describe("lidMigrationPatch runtime behavior", () => {
   function createFakeWindow() {
     const wid = { server: "c.us", user: "628123" };
     const calls = { isLidMigrated: 0, toUserLid: 0, toUserLidOrThrow: 0, thisOf: {} };
-    const injectionTargets = [];
     const lidGatingUtils = {
       isLidMigrated() {
         calls.isLidMigrated++;
@@ -101,36 +82,37 @@ describe("lidMigrationPatch runtime behavior", () => {
         return modules[module];
       },
       WWebJS: {
-        injectToFunction(target, callback) {
-          injectionTargets.push({ target, callback });
-        },
+        injectToFunction() {},
       },
     };
     const owners = { isLidMigrated: lidGatingUtils, toUserLid: lidUtils, toUserLidOrThrow: lidUtils };
-    return { window, calls, injectionTargets, wid, owners };
+    return { window, calls, wid, owners };
   }
 
   test("wraps LID converters and falls back to wid on throw", async () => {
-    const { window, calls, injectionTargets, wid, owners } = createFakeWindow();
+    const { window, calls, wid, owners } = createFakeWindow();
     globalThis.window = window;
     try {
       const source = getLidPatchSource();
       // Execute the patch body in a function receiving `window`
       await new Function("window", `return (${source})()`)(window);
-
-      for (const { target, callback } of injectionTargets) {
-        // Resolve the owning object the same way injectToFunction does
+      for (const target of [
+        { module: "WAWebLid1X1MigrationGating", function: "Lid1X1MigrationUtils.isLidMigrated" },
+        { module: "WAWebLidMigrationUtils", function: "toUserLid" },
+        { module: "WAWebLidMigrationUtils", function: "toUserLidOrThrow" },
+      ]) {
         const path = target.function.split(".");
         const funcName = path.pop();
         const owner = path.reduce((m, k) => m[k], window.require(target.module));
-        const original = owner[funcName];
-        const result = callback(owner, original, wid);
+        const result = owner[funcName](wid);
         if (target.function.endsWith("isLidMigrated")) {
-          assert.equal(result, false, "isLidMigrated must fall back to false on throw");
+          assert.equal(result, false);
         } else {
-          assert.equal(result, wid, `${target.function} must fall back to the original wid`);
+          assert.equal(result, wid);
         }
       }
+      assert.equal(window.__wwebjsLidPatchStatus.state, "applied");
+      assert.equal(window.__wwebjsLidPatchStatus.hooks.length, 3);
       assert.equal(calls.toUserLidOrThrow, 1);
       assert.equal(calls.isLidMigrated, 1);
       // Regression: originals must run with their owning object as `this`,
@@ -143,23 +125,27 @@ describe("lidMigrationPatch runtime behavior", () => {
     }
   });
 
-  test("is idempotent: second run does not re-inject", async () => {
-    const { window, injectionTargets } = createFakeWindow();
-    globalThis.window = window;
-    try {
-      const source = getLidPatchSource();
-      await new Function("window", `return (${source})()`)(window);
-      await new Promise((r) => setTimeout(r, 30));
-      const firstCount = injectionTargets.length;
-      assert.equal(firstCount, 3);
-
-      await new Function("window", `return (${source})()`)(window);
-      await new Promise((r) => setTimeout(r, 30));
-      assert.equal(injectionTargets.length, firstCount);
-    } finally {
-      delete globalThis.window;
-    }
+  test("propagates unrelated errors without calling the original twice", async () => {
+    const { window } = createFakeWindow();
+    const owner = window.require("WAWebLidMigrationUtils");
+    let calls = 0;
+    owner.toUserLid = () => { calls++; throw new Error("unexpected failure"); };
+    await new Function("window", `return (${getLidPatchSource()})()`)(window);
+    assert.throws(() => owner.toUserLid({ user: "123" }), /unexpected failure/);
+    assert.equal(calls, 1);
   });
+
+  test("reports unavailable hooks instead of claiming the patch is applied", async () => {
+    const { window } = createFakeWindow();
+    delete window.require("WAWebLidMigrationUtils").toUserLid;
+    const intervals = [];
+    const run = new Function("window", "setInterval", "clearInterval", `return (${getLidPatchSource()})()`);
+    await run(window, (callback) => { intervals.push(callback); return 1; }, () => {});
+    for (let i = 0; i < 240; i++) intervals[0]();
+    assert.equal(window.__wwebjsLidPatchStatus.state, "unavailable");
+    assert.equal(window.__wwebjsLidPatchStatus.hooks.length, 2);
+  });
+
 
   test("evalOnNewDoc export is a function (Client option contract)", () => {
     assert.equal(typeof lidMigrationPatch, "function");

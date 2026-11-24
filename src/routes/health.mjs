@@ -1,5 +1,5 @@
 import { dbManager } from "../helpers/dbHelper.mjs";
-import { client } from "../whatsappClient.mjs";
+import { isClientReady } from "../whatsappClient.mjs";
 import logger from "../logger.mjs";
 import { appConfig } from "../config.mjs";
 
@@ -39,7 +39,7 @@ export async function healthRoute(fastify) {
         const dbHealthy = await dbManager.healthCheck();
         
         // Check WhatsApp client status
-        const whatsappHealthy = client && client.info && client.info.wid;
+        const whatsappHealthy = isClientReady();
         
         const health = {
           status: (dbHealthy && whatsappHealthy) ? 'healthy' : 'degraded',
