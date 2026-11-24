@@ -51,6 +51,16 @@ Secara default header `X-Forwarded-*` tidak dipercaya. Jika aplikasi berada di b
 
 Patch LID menggunakan `evalOnNewDoc` tetapi bergantung pada modul privat WhatsApp Web. Log melaporkan jika hook tidak tersedia; patch tidak menjamin penyelesaian `No LID for user` dan perlu diuji pada akun dan versi WhatsApp Web yang digunakan.
 
+## Troubleshooting inisialisasi WhatsApp
+
+Jika startup gagal dengan `TimeoutError` pada `Client.inject`, lihat log `WhatsApp initialization timeout diagnostic`: `page` menunjukkan apakah halaman berada pada login, `webVersion` adalah versi yang termuat, dan `hasSocketModel`/`socketState` menunjukkan kesiapan koneksi internal. Log ini tidak memuat QR, URL lengkap, nomor, atau token.
+
+Jika `page` = `login` dan `hasSocketModel` = `false`, gejalanya cocok dengan [issue upstream #201988](https://github.com/wwebjs/whatsapp-web.js/issues/201988); penyebab di server Anda tetap perlu dikonfirmasi. Menaikkan timeout tidak memperbaiki modul yang tidak tersedia. Gunakan rilis upstream yang sudah memperbaiki issue tersebut ketika tersedia.
+
+Sebagai workaround sementara **hanya jika Anda sudah memiliki file HTML versi kompatibel yang tepercaya**, simpan file sebagai `.wwebjs_cache/<versi>.html`, lalu atur `WWEBJS_WEB_VERSION=<versi>` dan, jika direktori berbeda, `WWEBJS_WEB_CACHE_PATH=<direktori>`. Issue upstream melaporkan `2.3000.1054759074` berhasil pada lingkungannya, tetapi file tersebut tidak disertakan proyek ini dan kompatibilitasnya dapat kedaluwarsa. Cache bersifat strict: aplikasi gagal secara jelas jika file yang dipilih tidak ada; tidak diam-diam memakai versi terbaru. **Jangan gunakan file HTML yang tidak tepercaya:** Chromium akan menjalankannya pada konteks WhatsApp Web.
+
+Jika state tetap `OPENING` atau `UNLAUNCHED`, periksa koneksi dan akses WhatsApp Web dari server, proxy/firewall, serta kesesuaian Chromium. Untuk koneksi yang lambat, `WWEBJS_AUTH_TIMEOUT_MS` dapat diubah dari default `30000`, misalnya menjadi `120000`; ini bukan perbaikan untuk issue `/login/` di atas. Jangan menghapus `.wwebjs_auth` atau cache yang ada tanpa backup.
+
 ## Requirements
 
 - Node.js `^22.19.0 || ^24.0.0 || >=26.0.0`; gunakan Node.js 24 LTS jika memungkinkan. Node.js 18 dan 20 tidak lagi didukung oleh dependensi terbaru.

@@ -103,7 +103,28 @@ export const appConfig = {
 // Puppeteer / Browser Configuration
 export const browserConfig = {
   executablePath: getEnvVar('CHROMIUM_PATH', '/usr/bin/chromium-browser', 'string'),
+  authTimeoutMs: Number(getEnvVar('WWEBJS_AUTH_TIMEOUT_MS', '30000', 'string')),
+  webVersion: getEnvVar('WWEBJS_WEB_VERSION', null, 'string'),
+  webCachePath: getEnvVar('WWEBJS_WEB_CACHE_PATH', './.wwebjs_cache', 'string'),
 };
+
+if (!Number.isSafeInteger(browserConfig.authTimeoutMs) || browserConfig.authTimeoutMs <= 0) {
+  throw new AppError(
+    ErrorTypes.CONFIGURATION_ERROR,
+    HttpStatusCodes.INTERNAL_SERVER_ERROR,
+    'WWEBJS_AUTH_TIMEOUT_MS must be a positive integer in milliseconds',
+    false
+  );
+}
+
+if (browserConfig.webVersion && !/^\d+(?:\.\d+)+(?:-[a-zA-Z0-9]+)?$/.test(browserConfig.webVersion)) {
+  throw new AppError(
+    ErrorTypes.CONFIGURATION_ERROR,
+    HttpStatusCodes.INTERNAL_SERVER_ERROR,
+    'WWEBJS_WEB_VERSION must be a WhatsApp Web version, not a path',
+    false
+  );
+}
 
 // LLM Configuration
 export const llmConfig = {

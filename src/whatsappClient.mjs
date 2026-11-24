@@ -59,6 +59,11 @@ const puppeteerOptions = {
 export const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: puppeteerOptions,
+  authTimeoutMs: browserConfig.authTimeoutMs,
+  ...(browserConfig.webVersion && {
+    webVersion: browserConfig.webVersion,
+    webVersionCache: { type: 'local', path: browserConfig.webCachePath, strict: true },
+  }),
   // Patch LID-migration resolution failures on the WhatsApp Web page
   // (upstream issue wwebjs/whatsapp-web.js#3834, "No LID for user")
   evalOnNewDoc: lidMigrationPatch,
@@ -91,6 +96,39 @@ async function checkLidPatch(page) {
     }
   } catch (error) {
     logger.warn({ error }, 'Unable to inspect experimental LID patch');
+  }
+}
+
+async function logInitializationTimeout(error) {
+  if (error?.name !== 'TimeoutError' && error !== 'auth timeout') return;
+  const page = client.pupPage;
+  if (!page?.evaluate) return;
+  let timer;
+  try {
+    const diagnostic = await Promise.race([
+      page.evaluate(() => {
+        let socket;
+        try { socket = globalThis.require?.('WAWebSocketModel')?.Socket; } catch { /* module not loaded */ }
+        const state = typeof socket?.state === 'string' ? socket.state : null;
+        const webVersion = globalThis.Debug?.VERSION;
+        return {
+          page: globalThis.location.pathname.startsWith('/login') ? 'login' : 'other',
+          readyState: globalThis.document.readyState,
+          webVersion: typeof webVersion === 'string' && /^\d+(?:\.\d+)+$/.test(webVersion) ? webVersion : null,
+          hasSocketModel: !!socket,
+          socketState: ['OPENING', 'UNLAUNCHED', 'PAIRING', 'UNPAIRED', 'UNPAIRED_IDLE', 'CONNECTED', 'CONFLICT'].includes(state) ? state : null,
+        };
+      }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('diagnostic timed out')), 2000); }),
+    ]);
+    logger.warn({ diagnostic }, 'WhatsApp initialization timeout diagnostic');
+    if (diagnostic.page === 'login' && !diagnostic.hasSocketModel) {
+      logger.warn('WhatsApp Web login route has no socket model; this matches upstream issue #201988 and may require a patched upstream release or a locally cached compatible Web version');
+    }
+  } catch (diagnosticError) {
+    logger.warn({ error: diagnosticError }, 'Unable to inspect WhatsApp Web after initialization timeout');
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -428,6 +466,7 @@ export function initializeWhatsApp() {
     clientState = 'DISCONNECTED';
     lastQr = null;
     lastInitializationError = error;
+    await logInitializationTimeout(error);
     try { await client.destroy(); }
     catch (cleanupError) { logger.warn({ error: cleanupError }, "Failed to clean up WhatsApp client"); }
     logger.error({ error }, "WhatsApp initialization failed");
